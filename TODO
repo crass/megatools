@@ -1,0 +1,66 @@
+libmega
+=======
+
+- file data crypto
+  - cbc mac calculation (chunked) object (shared by multiple convertors, if dling
+    in parallel?)
+  - cbc mac chunked validation
+  - how to do partial file downloads?
+  - how to potentially do partial uploads?
+  - calculating cbc-mac for chunks (streaming operation)
+  - calculating meta mac
+
+- MegaNode
+  - Represent single node in the mega's filesystem
+
+- MegaFileKey
+  - verifying meta-mac against the key  
+  - packing meta-mac info into a key
+
+
+mega-gjs
+========
+
+- prototype libmega API in javascript
+
+- Mega.API
+  - Make use of AES-CTR/CBC-MAC stream converter
+  - Determine use cases for decryption convertors
+  - Packing multiple calls into single request/response (batching)
+  - Running operations in parallel (async)
+
+- Mega.Session
+  - Load filesystem info
+
+- improve JS error reporting HTTP error handling
+
+
+tools
+=====
+
+- gradually port to new libmega API
+- get rid of libcurl dependency
+
+- megasync
+  - control conflict resolution
+  - delete locally removed files from the cloud
+  - show summary/stats after sync
+  - control verbosity
+
+- megashare
+  - create shares on folders (and set permissions)
+  - export dirs
+
+- megamv /Path1 /Path2 ... /TgtPath
+
+- megacp /Path1 /Path2 ... /TgtPath
+
+- megafs
+  - read-only access (use partial downloads functionality)
+  - possibly do some smart caching
+
+- add runtime debug options to help debug other people's issues with
+  binary releases, or just to see what app is doing, and what state it
+  has (--debug)
+
+- add man pages

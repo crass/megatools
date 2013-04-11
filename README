@@ -1,0 +1,147 @@
+megatools - command line client application for Mega
+====================================================
+
+Megatools is a collection of programs for accessing Mega service from 
+a command line of your desktop or server.
+
+Megatools allow you to copy individual files as well as entire directory 
+trees to and from the cloud. You can also perform streaming downloads for 
+example to preview videos and audio files, without needing to download 
+the entire file.
+
+Megatools are robust and optimized for fast operation - as fast as Mega 
+servers allow. Memory requirements and CPU utilization are kept at minimum.
+
+You can register account using a 'megareg' tool, with the benefit of having 
+true control of your encryption keys.
+
+Mega website can be found at http://mega.co.nz.
+
+Megatools can be downloaded at http://megatools.megous.com
+
+
+Tools
+=====
+
+  megareg      Register and verify a new mega account
+  megadf       Show your cloud storage space usage/quota
+  megals       List all remote files
+  megamkdir    Create remote directory
+  megarm       Remove remote file or directory
+  megamv       Move and rename remote files
+  megaput      Upload individual files
+  megaget      Download individual files
+  megadl       Download file from a "public" Mega link
+               (doesn't require login)
+  megastream   Streaming download of a file
+               (can be used to preview videos or music)
+  megasync     Upload or download a directory tree
+  megafs       Mount remote filesystem locally.
+
+
+All of these tools do:
+
+- Local caching of remote session/filesystem information 
+  for faster execution. Cache is encrypted with your password 
+  key.
+- Support loading login credentials from a configuration file
+
+
+Usage
+=====
+
+1) Register for Mega account at http://mega.co.nz or via megareg.
+
+  megareg --register --email your@email.com --name "Your Name" --password "Your Password"
+
+Now vait for a verification mail and run the command as asked (for example):
+
+  megareg --verify \
+    '2uGbI*******************:fArj********************:U6*********' \
+    'https://mega.co.nz/#confirmciyfWXRGFNcM*************...'
+
+Don't worry, the tool will help you with the first parameter.
+
+2) Create ~/.megarc (on linux) or mega.ini file containing these 3 lines:
+
+[Login]
+Username = your@email
+Password = yourpassword
+
+3) Run megadf to check that megatools are able to login to your account.
+
+4) Enjoy using megatools :)
+
+Each of the individual tools have help that can be accessed using --help
+parameter.
+
+If you modify cloud filesystem from the Mega website or another computer,
+you'll need to refresh your local cache. This can be done by using the
+--reload option to any tool, or by waiting for a cache timeout. (10 minutes)
+
+
+Linux Examples
+==============
+
+  # Stream video from the cloud
+
+  megamkdir /Root/TestDir
+  megaput --path /Root/TestDir video.mp4
+  megastream /Root/TestDir/video.mp4 | ffplay -i -
+  
+  # Get public download links for all files
+
+  megals --links
+
+  # Download file using a public download link (parts of the link are
+  # redacted)
+
+  megadl 'https://mega.co.nz/#!6Uswg***!JOHnZ-b5dPIam_NqX-Tz6j1k*******************'
+
+
+Windows Examples
+================
+
+  megadf
+
+  megamkdir /Root/TestDir
+  megaput --path /Root/TestDir C:\myfile.txt
+
+  megamkdir /Root/SyncedMyDir
+  megasync --local C:\mydir --remote /Root/SyncedMyDir
+
+  megarm /Root/TestDir
+
+
+Windows Quirks
+==============
+
+On Windows, if you see weird characters in your megals output, you'll need
+to set correct CHARSET environment variable. For example on Czech Windows 
+this would mean executing this command in cmd before using the tools:
+
+  set CHARSET=CP852
+
+This is just a cosmetic issues, internally megatools always work with UTF8
+file names, and even if the tool's terminal output is corrupted, files names
+of downloaded/uploaded files will be correct.
+
+
+Author
+======
+
+Megatools were written by Ondřej Jirman <megous@megous.com>, 2013
+Webiste: http://megous.com
+
+
+Support and bug reports
+=======================
+
+If you think you've found bug in megatools, send a report including enough
+information for recreating the issue to: megous@megous.com
+
+
+License
+=======
+
+Megatools are licensed under GPLv2, see LICENSE file for details.

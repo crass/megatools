@@ -1,0 +1,4 @@
+export PATH="../../tools:$PATH"
+
+ROPTS="--reload --config=.megarc"
+OPTS="--config=.megarc"

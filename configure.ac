@@ -81,5 +81,9 @@ Configured features:
   warnings: $enable_warnings
   megafs: $ENABLE_FUSE (requires fuse)
   tests: $ENABLE_TESTS (requires glib-2.0 >= 2.34.0)
-  
+
+Run make now.
+
+NOTE: On FreeBSD, you need to use GNU make (gmake)
+
 EOF

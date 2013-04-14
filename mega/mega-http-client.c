@@ -201,9 +201,6 @@ static gboolean do_connect(MegaHttpClient* http_client, GCancellable* cancellabl
     }
 
     g_socket_client_set_tls(priv->client, TRUE);
-
-    //XXX: insecure
-    g_socket_client_set_tls_validation_flags(priv->client, G_TLS_CERTIFICATE_VALIDATE_ALL & ~G_TLS_CERTIFICATE_UNKNOWN_CA & ~G_TLS_CERTIFICATE_BAD_IDENTITY);
   }
   else
   {

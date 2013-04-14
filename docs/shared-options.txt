@@ -1,0 +1,35 @@
+ifndef::mega-no-login[]
+-u <email>::
+--username <email>::
+	Account username (email)
+
+-p <password>::
+--password <password>::
+	Account password
+
+--config <path>::
+	Load configuration from a file
+
+--ignore-config-file::
+	Disable loading .megarc
+
+--no-ask-password::
+	Never ask interactively for a password
+
+--reload::
+	Reload filesystem cache
+endif::mega-no-login[]
+
+--debug [<options>]::
+	Enable debugging of various aspects of the megatools 
+	operation. You may enable multiple debugging options 
+	separated by commas. (eg. `--debug api,fs`)
++
+Available options are:
+
+	* `api`: Dump Mega.co.nz API calls
+	* `fs`: Dump Mega.co.nz filesystem (may require `--reload` to actually print something)
+	* `cache`: Dump cache contents
+
+--version::
+	Show version information

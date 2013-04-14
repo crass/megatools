@@ -1,0 +1,83 @@
+megareg(1)
+=========
+
+NAME
+----
+megareg - Register new Mega.co.nz account
+
+
+SYNOPSIS
+--------
+[verse]
+'megareg' [--scripted] --register --email <email> --name <realname> --password <password>
+'megareg' [--scripted] --verify <state> <link>
+
+
+DESCRIPTION
+-----------
+
+Registers new Mega.co.nz account. Registration is split into two steps:
+
+. `--register`: Creates a new non-verified account
+. `--verify`: Verifies account with the link that was sent to `<email>`
+
+See example of registration below.
+
+
+OPTIONS
+-------
+
+--register::
+	Create new non-verified account.
+
+--verify <state> <link>::
+	Verify account previously created by `megareg --register`. You need to
+	pass `<state>` that was returned from `megareg --register` and
+	a verification link from the email that was sent to `<email>`.
+
+--email <email>::
+	Email serves as your new account username, that you'll be using to sign
+	in.
++
+*NOTES*: Beware that ATM, email format is not validated by megatools.
+
+--name <realname>::
+	Your real (or fake) name.
+
+--password <password>::
+	Plaintext password. No strength checking is done, so make sure you pick
+	a strong password yourself.
+
+--scripted::
+	After registration, print the command that can be used to finish the 
+	registration in a format suitable for scripting purposes.
+
+:mega-no-login: 1
+include::shared-options.txt[]
+
+EXAMPLE
+-------
+
+First create an non-verified account:
+
+------------
+$ megareg --register --email your@email.com --name "Your Name" --password "Your Password"
+
+Registration email was sent to test@megous.com. To complete registration, you must run:
+
+  megareg --verify vbFFFv7AFM25etzkFXLs9A==:Z7FFbgAAAAAAAAAArL33eA==:inEONh3tmwY @LINK@
+
+(Where @LINK@ is registration link from the 'MEGA Signup' email)
+------------
+
+Now wait for a verification mail and run the command as asked:
+
+------------
+$ megareg --verify vbFFFv7AFM25etzkFXLs9A==:Z7FFbgAAAAAAAAAArL33eA==:inEONh3tmwY \
+    'https://mega.co.nz/#confirmciyfWXRGFNcM...'
+
+Account registered successfully!
+------------
+
+
+include::footer.txt[]

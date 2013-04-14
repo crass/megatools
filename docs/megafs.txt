@@ -1,0 +1,59 @@
+megafs(1)
+=========
+
+NAME
+----
+megafs - Mount remote filesystem locally via FUSE
+
+
+SYNOPSIS
+--------
+[verse]
+'megafs' [-o <options>...] [-d] [-f] <mountpoint>
+
+
+DESCRIPTION
+-----------
+
+Mounts remote filesystem locally via FUSE.
+
+*NOTE*: Be aware that reading and writing files is not implemented 
+yet. You can only manage directories and remove files.
+
+OPTIONS
+-------
+
+-o <options>::
+	Additional mount options.
++
+Some useful options may be: kernel_cache, auto_cache, allow_other, allow_root, nonempty.
+
+-d::
+	Run filesystem in debug mode.
+
+-f::
+	Run filesystem in foreground mode.
+
+
+include::shared-options.txt[]
+
+<mountpoint>::
+	Local directory where the filesystem should be mounted.
+
+
+EXAMPLES
+--------
+
+* Mount remote fs:
++
+------------
+$ mkdir -p mount
+$ megafs mount
+$ ls mount
+Contacts Inbox Root Trash
+------------
+
+
+include::remote-paths.txt[]
+
+include::footer.txt[]

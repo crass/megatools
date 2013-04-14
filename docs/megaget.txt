@@ -1,0 +1,67 @@
+megaget(1)
+=========
+
+NAME
+----
+megaget - download files from your Mega.co.nz account
+
+
+SYNOPSIS
+--------
+[verse]
+'megaget' [--no-progress] [--path <path>] <remotepaths>...
+'megaget' --path - <remotefile>
+
+
+DESCRIPTION
+-----------
+
+Downloads files from your Mega.co.nz account.
+
+*NOTE*: If you want to download entire directories, use man:megasync[1].
+
+
+OPTIONS
+-------
+
+--path <path>::
+	Local path to download to. If this path is a directory, files are placed
+	into the directory. If this path doesn't exist, and it's parent
+	directory does, the file will be downloaded to a specified file (this only
+	works if you specify exactly one remote path).
++
+If `<path>` is `-`, remote file will be streamed to stdout.
+
+--no-progress::
+	Disable download progress reporting. This is implied when streaming.
+
+include::shared-options.txt[]
+
+<remotepaths>::
+	One or more remote files to download.
+
+<remotefile>::
+	Remote path to a single file to stream.
+
+
+EXAMPLES
+--------
+
+* Download file to the current directory:
++
+------------
+$ megals /Root
+
+/Root
+/Root/README
+
+$ megaget /Root/README
+$ ls
+
+README
+------------
+
+
+include::remote-paths.txt[]
+
+include::footer.txt[]

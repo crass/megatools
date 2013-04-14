@@ -1,0 +1,41 @@
+REMOTE FILESYSTEM
+-----------------
+
+Mega.co.nz filesystem is represented as a tree of nodes of various types. Nodes
+are identified by a 8 character node handles (eg. `7Fdi3ZjC`). Structure of the
+filesystem is not encrypted.
+
+Megatools maps node tree structure to a traditional filesystem paths (eg.
+`/Root/SomeFile.DAT`). 
+
+*NOTE*: By the nature of Mega.co.nz storage, several files in the directory can
+have the same name. To allow access to such files, the names of conflicting
+files are extended by appending dot and their node handle like this:
+
+---------
+/Root/conflictingfile
+/Root/conflictingfile.7Fdi3ZjC
+/Root/conflictingfile.mEU23aSD
+---------
+
+You need to be aware of several special folders:
+
+/Root::
+	Writable directory representing the root of the filesystem.
+
+/Trash::
+	Trash directory where Mega.co.nz web client moves deleted files. This
+	directory is not used by megatools when removing files.
+
+/Inbox::
+	Not sure.
+
+/Contacts::
+	Directory containing subdirectories representing your contacts list. If
+	you want to add contacts to the list, simply create subdirectory named
+	after the contact you want to add.
+
+/Contacts/<email>::
+	Directories representing individual contacts in your contacts list. These
+	directories contain folders that others shared with you. All shared
+	files are read-only, at the moment.

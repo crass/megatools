@@ -1,0 +1,68 @@
+megaput(1)
+=========
+
+NAME
+----
+megaput - upload files to your Mega.co.nz account
+
+
+SYNOPSIS
+--------
+[verse]
+'megaput' [--no-progress] [--path <remotepath>] <paths>...
+
+
+DESCRIPTION
+-----------
+
+Uploads files to your Mega.co.nz account.
+
+*NOTE*: If you want to upload entire directories, use man:megasync[1].
+
+
+OPTIONS
+-------
+
+--path <remotepath>::
+	Remote path to upload to. If this path is a directory, files are placed
+	into the directory. If this path doesn't exist, and it's parent
+	directory does, the file will be uploaded to a specified path (this only
+	works if you specify exactly one file).
+
+--no-progress::
+	Disable upload progress reporting.
+
+include::shared-options.txt[]
+
+<paths>::
+	One or more local files to upload.
+
+
+EXAMPLES
+--------
+
+* Upload file to the /Root:
++
+------------
+$ megaput README
+$ megals /Root
+
+/Root
+/Root/README
+------------
+
+
+* Upload file, while naming it differently:
++
+------------
+$ megaput --path /Root/README.TXT README
+$ megals /Root
+
+/Root
+/Root/README.TXT
+------------
+
+
+include::remote-paths.txt[]
+
+include::footer.txt[]

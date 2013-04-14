@@ -1,0 +1,72 @@
+megals(1)
+=========
+
+NAME
+----
+megadl - download exported files and directories from Mega.co.nz
+
+
+SYNOPSIS
+--------
+[verse]
+'megadl' [--no-progress] [--path <path>] <links>...
+'megadl' --path - <filelink>
+
+
+DESCRIPTION
+-----------
+
+Downloads exported files and folders from Mega.co.nz. Handles links like:
+
+* https://mega.co.nz/#!7YVWhCzZ!bauBlAkKKvv8hIm-8-qFmGOYS289ToQWN7rGFPzXB_w
+* https://mega.co.nz/#F!HIlFDajT!HLiVvQQkSe1d0ogxZuaOJg
+
+When downloading individual files, these are placed into `<path>`. When
+downloading folders, the contents of the folder are placed into directory
+specified by `<path>`.
+
+To export files, you can use Mega.co.nz web application, or man:megals[1]'s
+`--export` option.
+
+
+OPTIONS
+-------
+
+--path <path>::
+	Local directory to download to. Defaults to the current working directory.
++
+If `<path>` is `-`, remote file will be streamed to stdout.
+
+--no-progress::
+	Disable download progress reporting. This is implied when streaming.
+
+:mega-no-login: 1
+include::shared-options.txt[]
+
+<links>::
+	File and folder links to download from.
+
+<filelink>::
+	Link to exported file to stream.
+	
+
+EXAMPLES
+--------
+
+* Download exported file:
++
+------------
+$ megadl 'https://mega.co.nz/#!7YVWhCzZ!bauBlAkKKvv8hIm-8-qFmGOYS289ToQWN7rGFPzXB_w'
+------------
+
+
+* Download exported folder:
++
+------------
+$ megadl 'https://mega.co.nz/#F!HIlFDajT!HLiVvQQkSe1d0ogxZuaOJg'
+------------
+
+
+include::remote-paths.txt[]
+
+include::footer.txt[]

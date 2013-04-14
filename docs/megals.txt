@@ -1,0 +1,130 @@
+megals(1)
+=========
+
+NAME
+----
+megals - List files stored in the cloud
+
+
+SYNOPSIS
+--------
+[verse]
+'megals' [-e] [-h] [--header] [-l] [-R] [-n] [<remotepaths>...]
+
+
+DESCRIPTION
+-----------
+
+Lists files stored on Mega.co.nz, exports public download links.
+
+
+OPTIONS
+-------
+
+--export::
+-e::
+	For all files that are going to be listed, also display
+	public download link with file key.
++
+*NOTE*: Folders export doesn't work yet.
+
+--human::
+-h::
+	Display file sizes in a human readable format.
+
+--header::
+	For long list format, display header describing all 
+	listed columns.
+
+--long::
+-l::
+	List additional information about listed filesystem nodes.
+	Node handle, owner, node type, file size, and the last 
+	modification date.
+
+--recursive::
+-R::
+	List directories recursively. This is the default if no
+	paths are specified.
+
+--names::
+-n::
+	Show only names of nodes within the directory. This option 
+	has effect only if you specified a single path on a command 
+	line.
+
+include::shared-options.txt[]
+
+<remotepaths>::
+	One or more remote filesystem paths to list. If path points to
+	a directory, contents of the directory and the directory
+	itself is listed. When `--names` is given, only the contents
+	of the directory is listed.
+
+	If path points to a file, the file itself is listed.
+
+	If ommited, the entire remote filesystem is listed recursively.
+
+EXAMPLES
+--------
+
+* List all files:
++
+------------
+$ megals
+
+/Contacts
+/Inbox
+/Root
+/Root/README
+/Root/bigfile
+/Trash
+------------
+
+
+* List all files in the /Root, recursively and with details:
++
+------------
+$ megals -l /Root
+
+3RsS2QwJ                2             - 2013-01-22 12:31:06 /Root
+2FFSiaKZ    Xz2tWWB5Dmo 0          2686 2013-04-15 08:33:47 /Root/README
+udtDgR7I    Xz2tWWB5Dmo 0    4405067776 2013-04-10 19:16:02 /Root/bigfile
+------------
+
+
+* List all files in the /Root, recursively and with details, show only file names:
++
+------------
+$ megals -ln /Root
+
+2FFSiaKZ    Xz2tWWB5Dmo 0          2686 2013-04-15 08:33:47 README
+udtDgR7I    Xz2tWWB5Dmo 0    4405067776 2013-04-10 19:16:02 bigfile
+------------
+
+
+* Export download links:
++
+------------
+$ megals -e /Root/README
+
+https://mega.co.nz/#!OFFRlbgR!k5rWmLp3mxB0gsq07Ii67PLd9L0wq4KondFLDlfH3Uw /Root/README
+------------
+
+
+* List files in a more human readable format:
++
+------------
+$ megals -hnl --header /Root/README
+   
+===================================================================================
+Handle      Owner       T          Size Mod. Date           Filename
+===================================================================================
+2FFSiaKZ    Xz2tWWB5Dmo 0       2.6 KiB 2013-04-15 08:33:47 README
+------------
+
+
+
+include::remote-paths.txt[]
+
+include::footer.txt[]

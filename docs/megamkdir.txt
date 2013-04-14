@@ -1,0 +1,59 @@
+megamkdir(1)
+============
+
+NAME
+----
+megamkdir - Create remote folder under your Mega.co.nz account
+
+
+SYNOPSIS
+--------
+[verse]
+'megamkdir' <remotepaths>...
+'megamkdir' /Contacts/<contactemail>
+
+
+DESCRIPTION
+-----------
+
+Creates folders on Mega.co.nz.
+
+As a special case, by creating a new folder under /Contacts, you're adding
+a `<contactemail>` to your contacts list.
+
+
+OPTIONS
+-------
+
+include::shared-options.txt[]
+
+<remotepaths>::
+	One or more remote directories to create.
+
+<contactemail>::
+	Valid email address of a contact you want to add.
+
+
+EXAMPLES
+--------
+
+* Create new folder:
++
+------------
+$ megamkdir /Root/MyNewFolder
+$ megals /Root
+/Root
+/Root/MyNewFolder
+------------
+
+
+* Add new contact to your contacts list:
++
+------------
+$ megamkdir /Contacts/some@email.com
+------------
+
+
+include::remote-paths.txt[]
+
+include::footer.txt[]

@@ -57,3 +57,7 @@ Makefile.in
 /libmega.pc
 /*.tar.xz
 /*.tar.gz
+
+/docs/*.1
+/docs/*.7
+/docs/*.5

@@ -1,0 +1,76 @@
+megarc(5)
+=========
+
+NAME
+----
+megarc - Configuration file for megatools
+
+
+SYNOPSIS
+--------
+[verse]
+'~/.megarc'
+'./.megarc'
+
+
+DESCRIPTION
+-----------
+
+Megatools use INI configuration file to store commonly used login credentials.
+This makes it less bothersome to use the tools, as you can simply write
+
+--------
+$ megadf
+--------
+
+instead of
+
+--------
+$ megadf --username my@email.com --password mypass
+--------
+
+when using the tools.
+
+Configuration file is read either from the current directory or user's home
+directory. Exceptions are when `--ignore-config-file` was passed to the tool, or
+when explicit path to the config file was given via `--config <path>`.
+
+
+CONFIG FILE SECTIONS
+--------------------
+
+All sections are optional.
+
+
+[Login] Section
+~~~~~~~~~~~~~~~
+
+Username::
+	Your username.
+
+Password::
+	Your password.
+
+
+[Cache] Section
+~~~~~~~~~~~~~~~
+
+Timeout::
+	Cache timeout in seconds (default is 10 minutes).
+
+
+EXAMPLE
+-------
+
+Create ~/.megarc (on linux) or mega.ini file containing these 3 lines:
+
+------------
+[Login]
+Username = your@email
+Password = yourpassword
+------------
+
+Run man:megadf[1] to check that megatools are able to login to your account.
+
+
+include::footer.txt[]

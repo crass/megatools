@@ -1,0 +1,74 @@
+megadf(1)
+=========
+
+NAME
+----
+megadf - Show total available, used, or free space in the cloud
+
+
+SYNOPSIS
+--------
+[verse]
+'megadf' [--free|--total|--used] [--mb|--gb|-h]
+
+
+DESCRIPTION
+-----------
+
+Shows available, used and free space in the cloud in machine or human readable
+formats.
+
+
+OPTIONS
+-------
+
+--total::
+	Show only total available space (free + used).
+
+--free::
+	Show only free space.
+
+--used::
+	Show only used space.
+
+--human::
+-h::
+	Display file sizes in a human readable format.
+
+--mb::
+	Show in MiB units.
+
+--gb::
+	Show in GiB units.
+
+include::shared-options.txt[]
+
+
+EXAMPLES
+--------
+
+* Show overall human readable space usage information:
++
+------------
+$ megadf -h
+Total: 50.0 GiB
+Used:  6.4 GiB
+Free:  43.6 GiB
+------------
+
+
+* Check free space from a script:
++
+------------
+$ test `megadf --free --gb` -lt 1 && \
+  echo "You have less than 1 GiB of available free space"
+------------
+
+
+KNOWN BUGS
+----------
+
+Megadf can't determine available space for premium accounts.
+
+
+include::footer.txt[]

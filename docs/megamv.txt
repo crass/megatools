@@ -1,0 +1,67 @@
+megamv(1)
+=========
+
+NAME
+----
+megamv - move or rename files or folders on your Mega.co.nz account
+
+
+SYNOPSIS
+--------
+[verse]
+'megamv' <srcpaths>... <destpath>
+
+
+DESCRIPTION
+-----------
+
+Moves or renames files or folders on your Mega.co.nz account.
+
+*NOTE*: This tool is not implemented yet!
+
+OPTIONS
+-------
+
+include::shared-options.txt[]
+
+<srcpaths>::
+	One or more remote paths that are going to be moved. If destination path
+	points to a file, you must specify only single source path.
+
+<destpath>::
+	Destination path. 
+
+
+EXAMPLES
+--------
+
+* Rename a file:
++
+------------
+$ megals /Root
+/Root
+/Root/README.TXT
+$ megamv /Root/README.TXT /Root/README
+$ megals /Root
+/Root
+/Root/README
+------------
+
+
+* Move file to a another folder:
++
+------------
+$ megals -R /Root
+/Root
+/Root/README
+/Root/MyFolder
+$ megamv /Root/README /Root/MyFolder
+$ megals -R /Root
+/Root
+/Root/MyFolder/README
+------------
+
+
+include::remote-paths.txt[]
+
+include::footer.txt[]

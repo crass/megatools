@@ -1,0 +1,61 @@
+megarm(1)
+=========
+
+NAME
+----
+megarm - Remove files and folders from your Mega.co.nz account
+
+
+SYNOPSIS
+--------
+[verse]
+'megarm' <remotepaths>...
+'megarm' /Contacts/<contactemail>
+
+
+DESCRIPTION
+-----------
+
+Removes files and folders from your Mega.co.nz account.
+
+*NOTE*: This command removes folders recursively without asking. Be careful.
+
+As a special case, by removing a folder under /Contacts, you're removing
+a `<contactemail>` from your contacts list.
+
+OPTIONS
+-------
+
+include::shared-options.txt[]
+
+<remotepaths>::
+	One or more remote files or directories to remove.
+
+<contactemail>::
+	Valid email address of a contact you want to remove.
+
+
+EXAMPLES
+--------
+
+* Remove a folder:
++
+------------
+$ megals /Root
+/Root
+/Root/MyNewFolder
+$ megarm /Root/MyNewFolder
+$ megals /Root
+/Root
+------------
+
+* Remove contact from your contacts list:
++
+------------
+$ megarm /Contacts/some@email.com
+------------
+
+
+include::remote-paths.txt[]
+
+include::footer.txt[]

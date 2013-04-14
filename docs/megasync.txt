@@ -1,0 +1,69 @@
+megasync(1)
+===========
+
+NAME
+----
+megasync - Upload/download entire directories to/from your Mega.co.nz account
+
+
+SYNOPSIS
+--------
+[verse]
+'megasync' [-n] [--no-progress] --local <path> --remote <remotepath>
+'megasync' [-n] [--no-progress] --download --local <path> --remote <remotepath>
+
+
+DESCRIPTION
+-----------
+
+Sync remote and local directories. No files are ever overwritten or removed.
+
+Default direction is to upload files to the cloud. If you want to download
+files, you have to add `--download` option.
+
+
+OPTIONS
+-------
+
+-r <remotepath>::
+--remote <remotepath>::
+	Remote directory path.
+
+-l <path>::
+--local <path>::
+	Local directory path.
+
+-d::
+--download::
+	Download files from the Mega.co.nz. The default is to upload.
+
+-n::
+--dryrun::
+	Don't perform any actual changes, just print what would be done.
+
+--no-progress::
+	Disable upload progress reporting.
+
+include::shared-options.txt[]
+
+
+EXAMPLES
+--------
+
+* Upload directory.
++
+------------
+$ megasync --local MyBackups --remote /Root/Backups
+------------
+
+
+* Download directory.
++
+------------
+$ megasync --local MyBackups --remote /Root/Backups --download
+------------
+
+
+include::remote-paths.txt[]
+
+include::footer.txt[]

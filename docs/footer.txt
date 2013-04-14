@@ -1,0 +1,35 @@
+SEE ALSO
+--------
+man:megatools[7],
+man:megarc[5],
+man:megadf[1],
+man:megadl[1],
+man:megaget[1],
+man:megals[1],
+man:megamkdir[1],
+man:megaput[1],
+man:megareg[1],
+man:megarm[1],
+man:megamv[1],
+man:megastream[1],
+man:megasync[1],
+man:megafs[1].
+
+
+MEGATOOLS
+---------
+Part of the man:megatools[7] suite. 
+
+
+BUGS
+----
+
+Report bugs at link:https://github.com/megous/megatools[] or megous@megous.com.
+
+
+AUTHOR
+------
+
+Megatools was written by Ondrej Jirman <megous@megous.com>, 2013.
+
+Official website is link:http://megatools.megous.com[].

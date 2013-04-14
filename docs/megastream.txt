@@ -1,0 +1,94 @@
+megastream(1)
+=============
+
+NAME
+----
+megastream - Perform stre
+
+
+SYNOPSIS
+--------
+[verse]
+'megals' [-e] [-h] [--header] [-l] [-R] [-n] [<paths>...]
+
+
+DESCRIPTION
+-----------
+
+Lists files stored on Mega.co.nz, exports public download links.
+
+If you specify a remote path and the path is a directory, all 
+files within that directory will be listed, otherwise if the 
+path is a file, the file itself will be listed.
+
+
+OPTIONS
+-------
+
+--export::
+-e::
+	For all files that are going to be listed, also display
+	public download link with file key.
++
+*NOTE*: Exporting folders doesn't work yet.
+
+--human::
+-h::
+	Display file sizes in a human readable format.
+
+--header::
+	For long list format, display header describing all 
+	listed columns.
+
+--long::
+-l::
+	List additional information about listed filesystem nodes.
+	Node handle, owner, node type, file size, and the last 
+	modification date.
+
+--recursive::
+-R::
+	List directories recursively. This is the default if no
+	paths are specified.
+
+--names::
+-n::
+	Show only names of nodes within the directory. This option 
+	has effect only if you specified a single path on a command 
+	line.
+
+include::shared-options.txt[]
+
+EXAMPLES
+--------
+
+* List all files:
++
+------------
+$ megals
+/Root
+/Root/README.TXT
+/Contacts
+/Inbox
+/Trash
+------------
+
+
+* List all files in the /Root, recursively and with details:
++
+------------
+$ megals -lR /Root
+/Root/README.TXT
+------------
+
+
+* Export download links:
++
+------------
+$ megals -e /Root/README.TXT
+------------
+
+
+include::remote-paths.txt[]
+
+include::footer.txt[]

@@ -70,6 +70,7 @@ AC_CONFIG_FILES([
   mega/gjs/Makefile
   tools/Makefile
   tests/Makefile
+  docs/Makefile
 ])
 
 AC_OUTPUT

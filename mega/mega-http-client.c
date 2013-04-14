@@ -189,6 +189,8 @@ static gboolean do_connect(MegaHttpClient* http_client, GCancellable* cancellabl
 
   MegaHttpClientPrivate* priv = http_client->priv;
 
+  do_disconnect(http_client);
+
   // enable/disable TLS
   if (priv->https)
   {
@@ -208,7 +210,6 @@ static gboolean do_connect(MegaHttpClient* http_client, GCancellable* cancellabl
     g_socket_client_set_tls(priv->client, FALSE);
   }
 
-  do_disconnect(http_client);
 
   priv->conn = g_socket_client_connect_to_host(priv->client, priv->host, priv->port, cancellable, &local_err);
   if (!priv->conn)

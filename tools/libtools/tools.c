@@ -163,6 +163,29 @@ static void init_openssl_locking()
 
 #endif
 
+#ifdef G_OS_WIN32
+static gchar* get_tools_dir(void)
+{
+  gchar *path = NULL;
+  wchar_t *wpath;
+  DWORD len = PATH_MAX;
+
+  HMODULE handle = GetModuleHandleW(NULL);
+
+  wpath = g_new0(wchar_t, len);
+  if (GetModuleFileNameW(handle, wpath, len) < len)
+    path = g_utf16_to_utf8(wpath, -1, NULL, NULL, NULL);
+  g_free(wpath);
+
+  if (path == NULL)
+    path = g_strdup("");
+
+  gchar* dir = g_path_get_dirname(path);
+  g_free(path);
+  return dir;
+}
+#endif
+
 static void init(void)
 {
 #if !GLIB_CHECK_VERSION(2, 32, 0)
@@ -181,6 +204,20 @@ static void init(void)
 #endif
 
   init_openssl_locking();
+
+#ifdef G_OS_WIN32
+  gchar* tools_dir = get_tools_dir();
+
+  gchar* tmp = g_build_filename(tools_dir, "gio", NULL);
+  g_setenv("GIO_EXTRA_MODULES", tmp, TRUE);
+  g_free(tmp);
+
+  gchar* certs = g_build_filename(tools_dir, "ca-certificates.crt", NULL);
+  g_setenv("CA_CERT_PATH", certs, TRUE);
+  g_free(certs);
+
+  g_free(tools_dir);
+#endif
 }
 
 static gchar* input_password(void)

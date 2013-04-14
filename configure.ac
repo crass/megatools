@@ -52,9 +52,16 @@ AC_SUBST(GLIB_MAKEFILE)
 PKG_CHECK_MODULES(GLIBTESTS, [glib-2.0 >= 2.34.0], [ENABLE_TESTS=yes], [ENABLE_TESTS=no])
 AM_CONDITIONAL([ENABLE_TESTS], [test x$ENABLE_TESTS = xyes])
 
-# enable compiler warnings
-CFLAGS="$CFLAGS -Wall -Wextra -Wno-unused-parameter -Wno-unused-variable -Wno-unused-local-typedefs -Wno-sign-compare -Wno-pointer-sign -Wno-missing-field-initializers"
-AS_IF([$CC --version | head -n1 | grep '(GCC) 4\.8' &>/dev/null], [CFLAGS="$CFLAGS -Wno-unused-local-typedefs"])
+# enable dev compiler warnings
+AC_ARG_ENABLE([warnings], AC_HELP_STRING([--enable-warnings], [Build with compiler warnings enabled.]))
+AS_IF([test "x$enable_warnings" = "xyes"], [
+  CFLAGS="$CFLAGS -Wall -Wextra -Wno-unused-parameter -Wno-unused-variable -Wno-unused-local-typedefs -Wno-sign-compare -Wno-pointer-sign -Wno-missing-field-initializers"
+
+  AS_IF([$CC --version | head -n1 | grep '(GCC) 4\.8' &>/dev/null], [CFLAGS="$CFLAGS -Wno-unused-local-typedefs"])
+], [
+  CFLAGS="$CFLAGS -Wno-pointer-sign -Wno-unused-variable"
+  enable_warnings=no
+])
 
 AC_CONFIG_FILES([
   Makefile
@@ -71,6 +78,7 @@ cat << EOF
 
 Configured features:
 
+  warnings: $enable_warnings
   megafs: $ENABLE_FUSE (requires fuse)
   tests: $ENABLE_TESTS (requires glib-2.0 >= 2.34.0)
   

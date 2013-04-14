@@ -129,6 +129,13 @@ struct _mega_reg_state
   guchar challenge[16];
 };
 
+#define MEGA_DEBUG_API    0x01
+#define MEGA_DEBUG_CACHE  0x02
+#define MEGA_DEBUG_FS     0x04
+
+extern gint mega_debug;
+
+
 GQuark              mega_error_quark                (void);
 
 mega_session*       mega_session_new                (void);

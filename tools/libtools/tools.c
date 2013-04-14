@@ -50,8 +50,36 @@ static gboolean opt_no_config;
 static gboolean opt_no_ask_password;
 gboolean tool_allow_unknown_options = FALSE;
 
+static gboolean opt_debug_callback(const gchar *option_name, const gchar *value, gpointer data, GError **error)
+{
+  if (value)
+  {
+    gchar** opts = g_strsplit(value, ",", 0);
+    gchar** opt = opts;
+
+    while (*opt)
+    {
+      if (g_ascii_strcasecmp(*opt, "api") == 0)
+        mega_debug |= MEGA_DEBUG_API;
+      else if (g_ascii_strcasecmp(*opt, "fs") == 0)
+        mega_debug |= MEGA_DEBUG_FS;
+      else if (g_ascii_strcasecmp(*opt, "cache") == 0)
+        mega_debug |= MEGA_DEBUG_CACHE;
+
+      opt++;
+    }
+  }
+  else
+  {
+    mega_debug = MEGA_DEBUG_API;
+  }
+
+  return TRUE;
+}
+
 static GOptionEntry basic_options[] =
 {
+  { "debug",              '\0',  G_OPTION_FLAG_OPTIONAL_ARG, G_OPTION_ARG_CALLBACK, opt_debug_callback, "Enable debugging output", "OPTS"  },
   { "version",            '\0',  0, G_OPTION_ARG_NONE,    &opt_version,      "Show version information",           NULL    },
   { NULL }
 };
@@ -211,6 +239,17 @@ again:
   return password;
 }
 
+static void print_version(void)
+{
+  if (opt_version)
+  {
+    g_print("megatools " VERSION " - command line tools for Mega.co.nz\n\n");
+    g_print("Written by Ondřej Jirman <megous@megous.com>, 2013\n");
+    g_print("Go to http://megatools.megous.com for more information\n");
+    exit(0);
+  }
+}
+
 void tool_init_bare(gint* ac, gchar*** av, const gchar* tool_name, GOptionEntry* tool_entries)
 {
   GError *local_err = NULL;
@@ -227,16 +266,11 @@ void tool_init_bare(gint* ac, gchar*** av, const gchar* tool_name, GOptionEntry*
   if (!g_option_context_parse(opt_context, ac, av, &local_err))
   {
     g_printerr("ERROR: Option parsing failed: %s\n", local_err->message);
+    g_clear_error(&local_err);
     exit(1);
   }
 
-  if (opt_version)
-  {
-    g_print("megatools " VERSION " - command line tools for Mega.co.nz\n\n");
-    g_print("Written by Ondřej Jirman <megous@megous.com>, 2013\n");
-    g_print("Go to http://megatools.megous.com for more information\n");
-    exit(0);
-  }
+  print_version();
 }
 
 void tool_init(gint* ac, gchar*** av, const gchar* tool_name, GOptionEntry* tool_entries)
@@ -256,16 +290,11 @@ void tool_init(gint* ac, gchar*** av, const gchar* tool_name, GOptionEntry* tool
   if (!g_option_context_parse(opt_context, ac, av, &local_err))
   {
     g_printerr("ERROR: Option parsing failed: %s\n", local_err->message);
+    g_clear_error(&local_err);
     exit(1);
   }
 
-  if (opt_version)
-  {
-    g_print("megatools " VERSION " - command line tools for Mega.co.nz\n\n");
-    g_print("Written by Ondřej Jirman <megous@megous.com>, 2013\n");
-    g_print("Go to http://megatools.megous.com for more information\n");
-    exit(0);
-  }
+  print_version();
 
   // load username/password from ini file
   if (!opt_no_config || opt_config)

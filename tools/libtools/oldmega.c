@@ -34,9 +34,8 @@
 #include <openssl/err.h>
 
 #define CACHE_FORMAT_VERSION 3
-#define DEBUG_MEGA_API 0
-#define DEBUG_CACHE 0
-#define DEBUG_FS 0
+
+gint mega_debug = 0;
 
 // Data structures and enums
 
@@ -126,16 +125,12 @@ struct _mega_sesssion
 
 // {{{ print_node
 
-#if DEBUG_MEGA_API == 1 || DEBUG_CACHE == 1 || DEBUG_FS == 1
-
 static void print_node(const gchar* n, const gchar* prefix)
 {
   gchar* s = s_json_get(n);
   g_print("%s%s\n", prefix, s);
   g_free(s);
 }
-
-#endif
 
 // }}}
 // {{{ s_json_get_member_bytes
@@ -1258,9 +1253,8 @@ static gchar* api_request_unsafe(mega_session* s, const gchar* req_node, GError*
   g_return_val_if_fail(req_node != NULL, NULL);
   g_return_val_if_fail(err == NULL || *err == NULL, NULL);
 
-#if DEBUG_MEGA_API == 1
-  print_node(req_node, "-> ");
-#endif
+  if (mega_debug & MEGA_DEBUG_API)
+    print_node(req_node, "-> ");
 
   // prepare URL
   s->id++;
@@ -1297,10 +1291,8 @@ static gchar* api_request_unsafe(mega_session* s, const gchar* req_node, GError*
 
   gchar* res_node = g_string_free(res_str, FALSE);
 
-#if DEBUG_MEGA_API == 1
-  if (res_node)
+  if (mega_debug & MEGA_DEBUG_API && res_node)
     print_node(res_node, "<- ");
-#endif
 
   return res_node;
 }
@@ -2421,9 +2413,8 @@ gboolean mega_session_refresh(mega_session* s, GError** err)
     goto err;
   }
 
-#if DEBUG_FS == 1
-  print_node(f_node, "FS: ");
-#endif
+  if (mega_debug & MEGA_DEBUG_FS)
+    print_node(f_node, "FS: ");
 
   // process 'ok' array
   const gchar* ok_node = s_json_get_member(f_node, "ok");
@@ -4029,9 +4020,8 @@ gboolean mega_session_save(mega_session* s, GError** err)
   s_json_gen_end_object(gen);
   gchar *cache_data = s_json_gen_done(gen);
 
-#if DEBUG_CACHE == 1
-  print_node(cache_data, "SAVE CACHE: ");
-#endif
+  if (mega_debug & MEGA_DEBUG_CACHE)
+    print_node(cache_data, "SAVE CACHE: ");
 
   gchar* tmp = g_strconcat("MEGA", cache_data, NULL);
   gchar* cipher = b64_aes128_cbc_encrypt_str(tmp, s->password_key);
@@ -4117,9 +4107,8 @@ gboolean mega_session_load(mega_session* s, const gchar* un, const gchar* pw, gi
   gchar* cache_obj = s_json_get(data + 4);
   g_free(data);
 
-#if DEBUG_CACHE == 1
-  print_node(cache_obj, "LOAD CACHE: ");
-#endif
+  if (mega_debug & MEGA_DEBUG_CACHE)
+    print_node(cache_obj, "LOAD CACHE: ");
 
   if (s_json_get_type(cache_obj) == S_JSON_TYPE_OBJECT)
   {

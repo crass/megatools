@@ -1,4 +1,43 @@
-megatools 1.9.90 - 2013-04-08
+megatools 1.9.91 - 2013-04-14
+=============================
+
+Please note, that megatools is using GNOME release versioning. That means
+that in MAJOR.MINOR.PATCH, odd MINOR number signifies development version
+of the tools. PATCH version is increased on each public release.
+
+By using odd MINOR versions of the software you are using an unstable
+branch. That doesn't mean it will be crashing on you, but it may have 
+certain quirks, and oddities, missing or incomplete features, etc.
+
+Next stable release is going to be 2.0.0.
+
+To the news:
+
+- Added man pages for all tools
+- Removed megastream in favor of mega{dl,get} --path -
+- Megadf - fix unsigned overflow when server reports 0 total space
+- Implemented --debug option
+- Win32: Drop requirement for manual setup of GIO_EXTRA_MODULES
+- Load certificates from the binaries folder on windows
+- Enable CA validation for TLS connections
+- Fix compilation on FreeBSD by adding --enable-warnings
+- Add note that on FreeBSD GNU make must be used to build the tools
+- Fix typedef redefinitions (error on older gcc's)
+- Fix megals --names logic
+- megaput/megaget/megadl/megasync: --no-progress support
+- Fix mega_session_dl streaming mode segfault
+- megamkdir/megarm: Check for required arguments
+- Pretty print JSON in debug output
+
+AUR package is available at https://aur.archlinux.org/packages/megatools/
+
+Ubunut PPA is availble at https://launchpad.net/~megous/+archive/ppa
+
+If someone wants to take over packaging for Ubuntu or Debian, that would
+be very appretiated, as my speciality is Arch Linux.
+
+
+megatools 1.9.90 - 2013-04-11
 =============================
 
 Implemented much simpler and faster json parser than json-glib, which was
@@ -21,6 +60,7 @@ New command line tools:
   megafs  - mount mega.co.nz filesystem usong FUSE (Linux only)
   megamv  - move and rename remote files and directories
 
+
 megatools 1.2.2 - 2013-04-11
 ============================
 
@@ -34,6 +74,7 @@ Bugs fixed:
 - Segfault with password length over 15 chars
 - Fix file size parsing to make it work with files over 2GB in size
 
+
 megatools 1.2.1 - 2013-03-12
 ============================
 
@@ -41,6 +82,7 @@ Added support for OpenSUSE 12.1 and newer versions.
 
 Build libmega statically for binary distribution to ease installation 
 outside of /usr/local.
+
 
 megatools 1.2.0 - 2013-03-12
 ============================

@@ -50,67 +50,9 @@ All of these tools do:
 Usage
 =====
 
-1) Register for Mega account at http://mega.co.nz or via megareg.
+See man pages for how to use individual tools and how to configure them:
 
-  megareg --register --email your@email.com --name "Your Name" --password "Your Password"
-
-Now vait for a verification mail and run the command as asked (for example):
-
-  megareg --verify \
-    '2uGbI*******************:fArj********************:U6*********' \
-    'https://mega.co.nz/#confirmciyfWXRGFNcM*************...'
-
-Don't worry, the tool will help you with the first parameter.
-
-2) Create ~/.megarc (on linux) or mega.ini file containing these 3 lines:
-
-[Login]
-Username = your@email
-Password = yourpassword
-
-3) Run megadf to check that megatools are able to login to your account.
-
-4) Enjoy using megatools :)
-
-Each of the individual tools have help that can be accessed using --help
-parameter.
-
-If you modify cloud filesystem from the Mega website or another computer,
-you'll need to refresh your local cache. This can be done by using the
---reload option to any tool, or by waiting for a cache timeout. (10 minutes)
-
-
-Linux Examples
-==============
-
-  # Stream video from the cloud
-
-  megamkdir /Root/TestDir
-  megaput --path /Root/TestDir video.mp4
-  megastream /Root/TestDir/video.mp4 | ffplay -i -
-  
-  # Get public download links for all files
-
-  megals --links
-
-  # Download file using a public download link (parts of the link are
-  # redacted)
-
-  megadl 'https://mega.co.nz/#!6Uswg***!JOHnZ-b5dPIam_NqX-Tz6j1k*******************'
-
-
-Windows Examples
-================
-
-  megadf
-
-  megamkdir /Root/TestDir
-  megaput --path /Root/TestDir C:\myfile.txt
-
-  megamkdir /Root/SyncedMyDir
-  megasync --local C:\mydir --remote /Root/SyncedMyDir
-
-  megarm /Root/TestDir
+  man megatools
 
 
 Windows Quirks
@@ -122,7 +64,7 @@ this would mean executing this command in cmd before using the tools:
 
   set CHARSET=CP852
 
-This is just a cosmetic issues, internally megatools always work with UTF8
+This is just a cosmetic issue. Internally, megatools always work with UTF-8
 file names, and even if the tool's terminal output is corrupted, files names
 of downloaded/uploaded files will be correct.
 
@@ -131,7 +73,7 @@ Author
 ======
 
 Megatools were written by Ondřej Jirman <megous@megous.com>, 2013
-Webiste: http://megous.com
+Webiste: http://megatools.megous.com
 
 
 Support and bug reports

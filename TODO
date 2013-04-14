@@ -1,6 +1,8 @@
 libmega
 =======
 
+- port to nettle/gmp, drop openssl dependency
+
 - file data crypto
   - cbc mac calculation (chunked) object (shared by multiple convertors, if dling
     in parallel?)
@@ -10,9 +12,6 @@ libmega
   - calculating cbc-mac for chunks (streaming operation)
   - calculating meta mac
 
-- MegaNode
-  - Represent single node in the mega's filesystem
-
 - MegaFileKey
   - verifying meta-mac against the key  
   - packing meta-mac info into a key
@@ -21,7 +20,7 @@ libmega
 mega-gjs
 ========
 
-- prototype libmega API in javascript
+- prototype higher level libmega API in javascript
 
 - Mega.API
   - Make use of AES-CTR/CBC-MAC stream converter
@@ -40,12 +39,12 @@ tools
 
 - gradually port to new libmega API
 - get rid of libcurl dependency
+  - depends on new file crypto in libmega
 
 - megasync
   - control conflict resolution
   - delete locally removed files from the cloud
   - show summary/stats after sync
-  - control verbosity
 
 - megashare
   - create shares on folders (and set permissions)
@@ -58,9 +57,3 @@ tools
 - megafs
   - read-only access (use partial downloads functionality)
   - possibly do some smart caching
-
-- add runtime debug options to help debug other people's issues with
-  binary releases, or just to see what app is doing, and what state it
-  has (--debug)
-
-- add man pages

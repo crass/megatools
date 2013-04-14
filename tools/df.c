@@ -20,12 +20,34 @@
 #include "tools.h"
 
 static gboolean opt_human;
+static gboolean opt_mb;
+static gboolean opt_gb;
+static gboolean opt_total;
+static gboolean opt_free;
+static gboolean opt_used;
 
 static GOptionEntry entries[] =
 {
-  { "human",        'h',   0, G_OPTION_ARG_NONE,    &opt_human,         "Use human readable formatting",  NULL       },
+  { "human",         'h',   0, G_OPTION_ARG_NONE,    &opt_human,         "Use human readable formatting",    NULL       },
+  { "mb",           '\0',   0, G_OPTION_ARG_NONE,    &opt_mb,            "Show numbers in MiB",              NULL       },
+  { "gb",           '\0',   0, G_OPTION_ARG_NONE,    &opt_gb,            "Show numbers in GiB",              NULL       },
+  { "total",        '\0',   0, G_OPTION_ARG_NONE,    &opt_total,         "Show only total available space",  NULL       },
+  { "used",         '\0',   0, G_OPTION_ARG_NONE,    &opt_used,          "Show only used space",             NULL       },
+  { "free",         '\0',   0, G_OPTION_ARG_NONE,    &opt_free,          "Show only available free space",   NULL       },
   { NULL }
 };
+
+static gchar* format_size(guint64 size)
+{
+  if (opt_human)
+    return g_format_size_full(size, G_FORMAT_SIZE_IEC_UNITS);
+  else if (opt_mb)
+    size /= 1024 * 1024;
+  else if (opt_gb)
+    size /= 1024 * 1024 * 1024;
+
+  return g_strdup_printf("%" G_GUINT64_FORMAT, size);
+}
 
 int main(int ac, char* av[])
 {
@@ -33,6 +55,34 @@ int main(int ac, char* av[])
   mega_session* s;
 
   tool_init(&ac, &av, "- display mega.co.nz storage quotas/usage", entries);
+
+  if (opt_total || opt_free || opt_used)
+  {
+    gint opts_used = 0;
+    opts_used += opt_total ? 1 : 0;
+    opts_used += opt_free ? 1 : 0;
+    opts_used += opt_used ? 1 : 0;
+
+    if (opt_used > 1)
+    {
+      g_printerr("ERROR: Options conflict, you should use either --total, --used, or --free.\n");
+      return 1;
+    }
+  }
+
+  if (opt_human || opt_mb || opt_gb)
+  {
+    gint opts_used = 0;
+    opts_used += opt_human ? 1 : 0;
+    opts_used += opt_mb ? 1 : 0;
+    opts_used += opt_gb ? 1 : 0;
+
+    if (opt_used > 1)
+    {
+      g_printerr("ERROR: Options conflict, you should use either --human, --mb, or --gb.\n");
+      return 1;
+    }
+  }
 
   s = tool_start_session();
   if (!s)
@@ -46,17 +96,19 @@ int main(int ac, char* av[])
     goto err;
   }
 
-  if (opt_human)
-  {
-    g_print("Total: %s\n", g_format_size_full(q->total, G_FORMAT_SIZE_IEC_UNITS));
-    g_print("Used:  %s\n", g_format_size_full(q->used, G_FORMAT_SIZE_IEC_UNITS));
-    g_print("Free:  %s\n", g_format_size_full(q->total - q->used, G_FORMAT_SIZE_IEC_UNITS));
-  }
+  guint64 free = q->total >= q->used ? q->total - q->used : 0;
+
+  if (opt_total)
+    g_print("%s\n", format_size(q->total));
+  else if (opt_used)
+    g_print("%s\n", format_size(q->used));
+  else if (opt_free)
+    g_print("%s\n", format_size(free));
   else
   {
-    g_print("Total: %" G_GUINT64_FORMAT "\n", q->total);
-    g_print("Used:  %" G_GUINT64_FORMAT "\n", q->used);
-    g_print("Free:  %" G_GUINT64_FORMAT "\n", q->total - q->used);
+    g_print("Total: %s\n", format_size(q->total));
+    g_print("Used:  %s\n", format_size(q->used));
+    g_print("Free:  %s\n", format_size(free));
   }
 
   g_free(q);

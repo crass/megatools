@@ -29,7 +29,6 @@
 #define MEGA_IS_HTTP_INPUT_STREAM_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE((klass),  MEGA_TYPE_HTTP_INPUT_STREAM))
 #define MEGA_HTTP_INPUT_STREAM_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS((obj),  MEGA_TYPE_HTTP_INPUT_STREAM, MegaHttpInputStreamClass))
 
-typedef struct _MegaHttpInputStream MegaHttpInputStream;
 typedef struct _MegaHttpInputStreamClass MegaHttpInputStreamClass;
 typedef struct _MegaHttpInputStreamPrivate MegaHttpInputStreamPrivate;
 

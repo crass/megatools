@@ -29,7 +29,6 @@
 #define MEGA_IS_HTTP_CLIENT_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE((klass),  MEGA_TYPE_HTTP_CLIENT))
 #define MEGA_HTTP_CLIENT_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS((obj),  MEGA_TYPE_HTTP_CLIENT, MegaHttpClientClass))
 
-typedef struct _MegaHttpClient MegaHttpClient;
 typedef struct _MegaHttpClientClass MegaHttpClientClass;
 typedef struct _MegaHttpClientPrivate MegaHttpClientPrivate;
 

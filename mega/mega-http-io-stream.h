@@ -29,9 +29,6 @@
 #define MEGA_IS_HTTP_IO_STREAM_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE((klass),  MEGA_TYPE_HTTP_IO_STREAM))
 #define MEGA_HTTP_IO_STREAM_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS((obj),  MEGA_TYPE_HTTP_IO_STREAM, MegaHttpIOStreamClass))
 
-typedef struct _MegaHttpClient MegaHttpClient;
-
-typedef struct _MegaHttpIOStream MegaHttpIOStream;
 typedef struct _MegaHttpIOStreamClass MegaHttpIOStreamClass;
 typedef struct _MegaHttpIOStreamPrivate MegaHttpIOStreamPrivate;
 

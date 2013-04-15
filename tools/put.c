@@ -20,10 +20,12 @@
 #include "tools.h"
 
 static gchar* opt_path = "/Root";
+static gboolean opt_noprogress = FALSE;
 
 static GOptionEntry entries[] =
 {
   { "path",          '\0',   0, G_OPTION_ARG_STRING,  &opt_path,  "Remote path to save files to",  "PATH" },
+  { "no-progress",   '\0',   0, G_OPTION_ARG_NONE,    &opt_noprogress,  "Disable progress bar",   NULL},
   { NULL }
 };
 
@@ -36,7 +38,7 @@ static gboolean status_callback(mega_status_data* data, gpointer userdata)
     cur_file = g_strdup(data->fileinfo.name);
   }
 
-  if (data->type == MEGA_STATUS_PROGRESS)
+  if (!opt_noprogress && data->type == MEGA_STATUS_PROGRESS)
   {
     gchar* done_str = g_format_size_full(data->progress.done, G_FORMAT_SIZE_IEC_UNITS);
     gchar* total_str = g_format_size_full(data->progress.total, G_FORMAT_SIZE_IEC_UNITS);
@@ -58,6 +60,13 @@ int main(int ac, char* av[])
 
   tool_init(&ac, &av, "- upload files to mega.co.nz", entries);
 
+  if (ac < 2)
+  {
+    g_printerr("ERROR: No files specified for upload!\n");
+    tool_fini(NULL);
+    return 1;
+  }
+
   s = tool_start_session();
   if (!s)
     return 1;
@@ -72,13 +81,15 @@ int main(int ac, char* av[])
     // perform download
     if (!mega_session_put(s, opt_path, av[i], &local_err))
     {
-      g_print("\r" ESC_CLREOL "\n");
+      if (!opt_noprogress)
+        g_print("\r" ESC_CLREOL "\n");
       g_printerr("ERROR: Upload failed for '%s': %s\n", av[i], local_err->message);
       g_clear_error(&local_err);
     }
     else
     {
-      g_print("\r" ESC_CLREOL "Uploaded %s\n", cur_file);
+      if (!opt_noprogress)
+        g_print("\r" ESC_CLREOL "Uploaded %s\n", cur_file);
     }
 
     g_free(cur_file);

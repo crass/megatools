@@ -1,20 +1,8 @@
-/*
- *  megatools - Mega.co.nz client library and tools
- *  Copyright (C) 2013  Ondřej Jirman <megous@megous.com>
+/** 
+ * sjson - fast string based JSON parser/generator
  *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * Written by Ondrej Jirman <megous@megous.com>, 2013
+ * WWW: https://github.com/megous/sjson
  */
 
 #ifndef __S_JSON_H__
@@ -67,12 +55,16 @@ void           s_json_gen_end_object            (SJsonGen* json);
 void           s_json_gen_start_array           (SJsonGen* json);
 void           s_json_gen_end_array             (SJsonGen* json);
 
+void           s_json_gen_json                  (SJsonGen* json, const gchar* v);
+void           s_json_gen_build                 (SJsonGen* json, const gchar* fmt, ...);
 void           s_json_gen_string                (SJsonGen* json, const gchar* v);
 void           s_json_gen_int                   (SJsonGen* json, gint64 v);
 void           s_json_gen_double                (SJsonGen* json, gdouble v);
 void           s_json_gen_bool                  (SJsonGen* json, gboolean v);
 void           s_json_gen_null                  (SJsonGen* json);
 
+void           s_json_gen_member_json           (SJsonGen* json, const gchar* name, const gchar* v);
+void           s_json_gen_member_build          (SJsonGen* json, const gchar* name, const gchar* fmt, ...);
 void           s_json_gen_member_string         (SJsonGen* json, const gchar* name, const gchar* v);
 void           s_json_gen_member_int            (SJsonGen* json, const gchar* name, gint64 v);
 void           s_json_gen_member_double         (SJsonGen* json, const gchar* name, gdouble v);
@@ -82,5 +74,12 @@ void           s_json_gen_member_array          (SJsonGen* json, const gchar* na
 void           s_json_gen_member_object         (SJsonGen* json, const gchar* name);
 
 gchar*         s_json_gen_done                  (SJsonGen* json);
+
+gchar*         s_json_buildv                    (const gchar* format, va_list args);
+gchar*         s_json_build                     (const gchar* format, ...);
+
+gchar*         s_json_pretty                    (const gchar* json);
+
+const gchar*   s_json_path                      (const gchar* json, const gchar* path);
 
 #endif

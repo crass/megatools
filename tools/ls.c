@@ -65,22 +65,20 @@ int main(int ac, char* av[])
   }
   else
   {
+    if (ac > 2 || opt_recursive)
+      opt_names = FALSE;
+
     for (j = 1; j < ac; j++)
     {
       mega_node* n = mega_session_stat(s, av[j]);
-      if (n)
+      if (n && (n->type == MEGA_NODE_FILE || !opt_names))
         l = g_slist_append(l, n);
+
       l = g_slist_concat(l, mega_session_ls(s, av[j], opt_recursive));
     }
-
-    if (ac > 2)
-      opt_names = FALSE;
   }
 
   l = g_slist_sort(l, (GCompareFunc)compare_node);
-
-  if (opt_recursive)
-    opt_names = FALSE;
 
   // export if requested
   if (opt_export && !mega_session_addlinks(s, l, &local_err))

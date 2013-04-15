@@ -19,6 +19,12 @@
 
 #include "utils.h"
 #include <string.h>
+#include <nettle/yarrow.h>
+#include <glib/gstdio.h>
+#ifdef G_OS_WIN32
+#include <windows.h>
+#include <wincrypt.h>
+#endif
 
 /**
  * mega_base64urlencode:
@@ -156,4 +162,53 @@ void mega_checksum(const guchar* buffer, gsize len, guchar csum[12])
 
   while (len--)
     csum[len % 12] ^= buffer[len];
+}
+
+// randomness
+
+G_LOCK_DEFINE_STATIC(yarrow);
+static gboolean yarrow_ready = FALSE;
+static struct yarrow256_ctx yarrow_ctx;
+
+void mega_randomness(guchar* buffer, gsize len)
+{
+  guchar buf[YARROW256_SEED_FILE_SIZE];
+
+  G_LOCK(yarrow);
+
+  if (!yarrow_ready)
+  {
+    yarrow256_init(&yarrow_ctx, 0, NULL);
+
+#ifdef G_OS_WIN32
+    HCRYPTPROV hProvider;
+    if (!CryptAcquireContextW(&hProvider, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT))
+      g_error("Failed to seed random generator");
+    if (!CryptGenRandom(hProvider, sizeof(buf), buf))
+      g_error("Failed to seed random generator");
+
+    CryptReleaseContext(hProvider, 0); 
+#else
+    FILE* f = g_fopen("/dev/urandom", "r");
+    if (!f)
+      g_error("Failed to seed random generator");
+
+    if (fread(buf, 1, sizeof(buf), f) != sizeof(buf))
+      g_error("Failed to seed random generator");
+
+    fclose(f);
+#endif
+
+    yarrow256_seed(&yarrow_ctx, YARROW256_SEED_FILE_SIZE, buf);
+  }
+
+  yarrow256_random(&yarrow_ctx, len, buffer);
+
+  G_UNLOCK(yarrow);
+}
+
+// for use in nettle funcs
+void mega_randomness_nettle(gpointer ctx, guint len, guchar* buffer)
+{
+  mega_randomness(buffer, len);
 }

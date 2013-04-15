@@ -17,7 +17,7 @@ int main(int ac, char* av[])
 
   if (ac < 3)
   {
-    g_printerr("ERROR: You must specify both source path(s) and destination path\nExample: megamv /Root/test.mp3 /Root/Subdir/");
+    g_printerr("ERROR: You must specify both source path(s) and destination path");
     return 1;
   }
 

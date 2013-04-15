@@ -54,7 +54,7 @@
  *   input string is automatically zero padded to multiples of 16 bytes.
  *
  * - CTR mode encryption/decryption initialized with 8 byte nonce and 64bit
- *   block position using #mega_aes_key_setup_ctr and #mega_aes_key_encrypt_ctr
+ *   block position using #mega_aes_key_encrypt_ctr
  *   (also used for decryption, because it's a symetric operation).
  *
  * - Transform username to a UBase64 encoded hash used for session
@@ -65,9 +65,9 @@
 #include "utils.h"
 
 #include <string.h>
-#include <openssl/aes.h>
-#include <openssl/rand.h>
-#include <openssl/err.h>
+#include <nettle/aes.h>
+#include <nettle/cbc.h>
+#include <nettle/ctr.h>
 
 struct _MegaAesKeyPrivate
 {
@@ -75,21 +75,8 @@ struct _MegaAesKeyPrivate
 
   guchar key[16];
 
-  AES_KEY enc_key;
-  AES_KEY dec_key;
-
-  // for ctr
-  union 
-  {
-    guchar ctr_iv[16];
-    struct 
-    {
-      guchar ctr_nonce[8];
-      guint64 ctr_position;
-    };
-  };
-  gint ctr_num;
-  guchar ctr_ecount[AES_BLOCK_SIZE];
+  struct aes_ctx enc_key;
+  struct aes_ctx dec_key;
 };
 
 // {{{ GObject property and signal enums
@@ -243,8 +230,8 @@ void mega_aes_key_load_binary(MegaAesKey* aes_key, const guchar* data)
 
   memcpy(aes_key->priv->key, data, 16);
 
-  AES_set_encrypt_key(data, 128, &aes_key->priv->enc_key);
-  AES_set_decrypt_key(data, 128, &aes_key->priv->dec_key);
+  aes_set_encrypt_key(&aes_key->priv->enc_key, 16, data);
+  aes_set_decrypt_key(&aes_key->priv->dec_key, 16, data);
 
   aes_key->priv->loaded = TRUE;
 }
@@ -346,10 +333,9 @@ void mega_aes_key_encrypt_raw(MegaAesKey* aes_key, const guchar* plain, guchar* 
   g_return_if_fail(MEGA_IS_AES_KEY(aes_key));
   g_return_if_fail(plain != NULL);
   g_return_if_fail(cipher != NULL);
-  g_return_if_fail(len % 16 == 0);
+  g_return_if_fail(len % AES_BLOCK_SIZE == 0);
 
-  for (off = 0; off < len; off += 16)
-    AES_encrypt(plain + off, cipher + off, &aes_key->priv->enc_key);
+  aes_encrypt(&aes_key->priv->enc_key, len, cipher, plain);
 }
 
 /**
@@ -368,10 +354,9 @@ void mega_aes_key_decrypt_raw(MegaAesKey* aes_key, const guchar* cipher, guchar*
   g_return_if_fail(MEGA_IS_AES_KEY(aes_key));
   g_return_if_fail(cipher != NULL);
   g_return_if_fail(plain != NULL);
-  g_return_if_fail(len % 16 == 0);
+  g_return_if_fail(len % AES_BLOCK_SIZE == 0);
 
-  for (off = 0; off < len; off += 16)
-    AES_decrypt(cipher + off, plain + off, &aes_key->priv->dec_key);
+  aes_decrypt(&aes_key->priv->dec_key, len, plain, cipher);
 }
 
 /**
@@ -382,11 +367,11 @@ void mega_aes_key_decrypt_raw(MegaAesKey* aes_key, const guchar* cipher, guchar*
  */
 void mega_aes_key_generate(MegaAesKey* aes_key)
 {
-  guchar rand_key[16];
+  guchar rand_key[AES_BLOCK_SIZE];
 
   g_return_if_fail(MEGA_IS_AES_KEY(aes_key));
 
-  RAND_bytes(rand_key, sizeof(rand_key));
+  mega_randomness(rand_key, sizeof(rand_key));
 
   mega_aes_key_load_binary(aes_key, rand_key);
 }
@@ -403,7 +388,7 @@ void mega_aes_key_generate_from_password(MegaAesKey* aes_key, const gchar* passw
   g_return_if_fail(MEGA_IS_AES_KEY(aes_key));
   g_return_if_fail(password != NULL);
 
-  guchar pkey[16] = {0x93, 0xC4, 0x67, 0xE3, 0x7D, 0xB0, 0xC7, 0xA4, 0xD1, 0xBE, 0x3F, 0x81, 0x01, 0x52, 0xCB, 0x56};
+  guchar pkey[AES_BLOCK_SIZE] = {0x93, 0xC4, 0x67, 0xE3, 0x7D, 0xB0, 0xC7, 0xA4, 0xD1, 0xBE, 0x3F, 0x81, 0x01, 0x52, 0xCB, 0x56};
   gint off, r;
   gint len;
 
@@ -411,15 +396,14 @@ void mega_aes_key_generate_from_password(MegaAesKey* aes_key, const gchar* passw
 
   for (r = 65536; r--; )
   {
-    for (off = 0; off < len; off += 16)
+    for (off = 0; off < len; off += AES_BLOCK_SIZE)
     {
-      AES_KEY k;
-      guchar key[16] = {0}, pkey_tmp[16];
-      strncpy(key, password + off, 16);
+      struct aes_ctx k;
+      guchar key[AES_BLOCK_SIZE] = {0};
+      strncpy(key, password + off, AES_BLOCK_SIZE);
 
-      AES_set_encrypt_key(key, 128, &k);
-      AES_encrypt(pkey, pkey_tmp, &k);  
-      memcpy(pkey, pkey_tmp, 16);
+      aes_set_encrypt_key(&k, AES_BLOCK_SIZE, key);
+      aes_encrypt(&k, AES_BLOCK_SIZE, pkey, pkey);  
     }
   }
 
@@ -445,15 +429,14 @@ gchar* mega_aes_key_make_username_hash(MegaAesKey* aes_key, const gchar* usernam
   username_lower = g_ascii_strdown(username, -1);
 
   gint l, i;
-  guchar hash[16] = {0}, hash_tmp[16], oh[8];
+  guchar hash[AES_BLOCK_SIZE] = {0}, oh[8];
 
   for (i = 0, l = strlen(username_lower); i < l; i++) 
-    hash[i % 16] ^= username_lower[i];
+    hash[i % AES_BLOCK_SIZE] ^= username_lower[i];
 
   for (i = 16384; i--; ) 
   {
-    AES_encrypt(hash, hash_tmp, &aes_key->priv->enc_key);  
-    memcpy(hash, hash_tmp, 16);
+    aes_encrypt(&aes_key->priv->enc_key, AES_BLOCK_SIZE, hash, hash);  
   }
 
   memcpy(oh, hash, 4);
@@ -481,7 +464,7 @@ gchar* mega_aes_key_encrypt(MegaAesKey* aes_key, const guchar* plain, gsize len)
 
   g_return_val_if_fail(MEGA_IS_AES_KEY(aes_key), NULL);
   g_return_val_if_fail(plain != NULL, NULL);
-  g_return_val_if_fail((len % 16) == 0, NULL);
+  g_return_val_if_fail((len % AES_BLOCK_SIZE) == 0, NULL);
   g_return_val_if_fail(len > 0, NULL);
 
   cipher = g_malloc0(len);
@@ -519,7 +502,7 @@ GBytes* mega_aes_key_decrypt(MegaAesKey* aes_key, const gchar* cipher)
     return NULL;
   }
 
-  if (cipherlen % 16 != 0)
+  if (cipherlen % AES_BLOCK_SIZE != 0)
   {
     g_free(cipher_raw);
     return NULL;
@@ -541,17 +524,17 @@ GBytes* mega_aes_key_decrypt(MegaAesKey* aes_key, const gchar* cipher)
  *
  * Encrypt plaintext blocks using AES key in CBC mode with zero IV
  */
-void mega_aes_key_encrypt_cbc_raw (MegaAesKey* aes_key, const guchar* plain, guchar* cipher, gsize len)
+void mega_aes_key_encrypt_cbc_raw(MegaAesKey* aes_key, const guchar* plain, guchar* cipher, gsize len)
 {
   guchar iv[AES_BLOCK_SIZE] = {0};
 
   g_return_if_fail(MEGA_IS_AES_KEY(aes_key));
   g_return_if_fail(plain != NULL);
   g_return_if_fail(cipher != NULL);
-  g_return_if_fail((len % 16) == 0);
+  g_return_if_fail((len % AES_BLOCK_SIZE) == 0);
   g_return_if_fail(len > 0);
 
-  AES_cbc_encrypt(plain, cipher, len, &aes_key->priv->enc_key, iv, 1);
+  cbc_encrypt(&aes_key->priv->enc_key, (nettle_crypt_func*)aes_encrypt, AES_BLOCK_SIZE, iv, len, cipher, plain);
 }
 
 /**
@@ -563,17 +546,17 @@ void mega_aes_key_encrypt_cbc_raw (MegaAesKey* aes_key, const guchar* plain, guc
  *
  * Decrypt ciphertext blocks using AES key in CBC mode with zero IV
  */
-void mega_aes_key_decrypt_cbc_raw (MegaAesKey* aes_key, const guchar* cipher, guchar* plain, gsize len)
+void mega_aes_key_decrypt_cbc_raw(MegaAesKey* aes_key, const guchar* cipher, guchar* plain, gsize len)
 {
   guchar iv[AES_BLOCK_SIZE] = {0};
 
   g_return_if_fail(MEGA_IS_AES_KEY(aes_key));
   g_return_if_fail(cipher != NULL);
   g_return_if_fail(plain != NULL);
-  g_return_if_fail((len % 16) == 0);
+  g_return_if_fail((len % AES_BLOCK_SIZE) == 0);
   g_return_if_fail(len > 0);
 
-  AES_cbc_encrypt(cipher, plain, len, &aes_key->priv->dec_key, iv, 0);
+  cbc_decrypt(&aes_key->priv->dec_key, (nettle_crypt_func*)aes_decrypt, AES_BLOCK_SIZE, iv, len, plain, cipher);
 }
 
 /**
@@ -591,15 +574,14 @@ gchar* mega_aes_key_encrypt_cbc(MegaAesKey* aes_key, const guchar* plain, gsize 
 {
   guchar* cipher;
   gchar* str;
-  guchar iv[AES_BLOCK_SIZE] = {0};
 
   g_return_val_if_fail(MEGA_IS_AES_KEY(aes_key), NULL);
   g_return_val_if_fail(plain != NULL, NULL);
-  g_return_val_if_fail((len % 16) == 0, NULL);
+  g_return_val_if_fail((len % AES_BLOCK_SIZE) == 0, NULL);
   g_return_val_if_fail(len > 0, NULL);
 
   cipher = g_malloc0(len);
-  AES_cbc_encrypt(plain, cipher, len, &aes_key->priv->enc_key, iv, 1);
+  mega_aes_key_encrypt_cbc_raw(aes_key, plain, cipher, len);
   str = mega_base64urlencode(cipher, len);
   g_free(cipher);
 
@@ -617,7 +599,6 @@ gchar* mega_aes_key_encrypt_cbc(MegaAesKey* aes_key, const guchar* plain, gsize 
  */
 GBytes* mega_aes_key_decrypt_cbc(MegaAesKey* aes_key, const gchar* cipher)
 {
-  guchar iv[AES_BLOCK_SIZE] = {0};
   guchar* cipher_raw;
   guchar* plain;
   gsize cipherlen = 0;
@@ -629,14 +610,14 @@ GBytes* mega_aes_key_decrypt_cbc(MegaAesKey* aes_key, const gchar* cipher)
   if (cipher_raw == NULL)
     return NULL;
 
-  if (cipherlen % 16 != 0)
+  if (cipherlen % AES_BLOCK_SIZE != 0)
   {
     g_free(cipher_raw);
     return NULL;
   }
 
   plain = g_malloc0(cipherlen + 1);
-  AES_cbc_encrypt(cipher_raw, plain, cipherlen, &aes_key->priv->dec_key, iv, 0);
+  mega_aes_key_decrypt_cbc_raw(aes_key, cipher_raw, plain, cipherlen);
   g_free(cipher_raw);
 
   return g_bytes_new_take(plain, cipherlen);
@@ -663,8 +644,8 @@ gchar* mega_aes_key_encrypt_string_cbc(MegaAesKey* aes_key, const gchar* str)
 
   // calculate paded size
   len = strlen(str) + 1;
-  if (len % 16)
-    len += 16 - (len % 16);
+  if (len % AES_BLOCK_SIZE)
+    len += AES_BLOCK_SIZE - (len % AES_BLOCK_SIZE);
 
   plain = g_malloc0(len);
   memcpy(plain, str, len - 1);
@@ -675,42 +656,39 @@ gchar* mega_aes_key_encrypt_string_cbc(MegaAesKey* aes_key, const gchar* str)
 }
 
 /**
- * mega_aes_key_setup_ctr:
+ * mega_aes_key_encrypt_ctr:
  * @aes_key: a #MegaAesKey
  * @nonce: (element-type guint8) (array fixed-size=8) (transfer none): 8-byte nonce buffer
  * @position: Counter value (block index)
- *
- * Setup CTR mode encryption/decryption.
- */
-void mega_aes_key_setup_ctr(MegaAesKey* aes_key, guchar* nonce, guint64 position)
-{
-  g_return_if_fail(MEGA_IS_AES_KEY(aes_key));
-  g_return_if_fail(nonce != NULL);
-
-  memcpy(aes_key->priv->ctr_nonce, nonce, 8);
-  aes_key->priv->ctr_position = GUINT64_TO_BE(position);
-
-  memset(aes_key->priv->ctr_ecount, 0, 16);
-  aes_key->priv->ctr_num = 0;
-}
-
-/**
- * mega_aes_key_encrypt_ctr:
- * @aes_key: a #MegaAesKey
  * @from: (in) (element-type guint8) (array length=len): Plaintext input data
  * @to: (out caller-allocates) (element-type guint8) (array length=len): Ciphertext
  * @len: (in): 16 byte aligned length of plaintext data.
  *
  * Encrypt plaintext blocks using AES key in CTR mode.
  */
-void mega_aes_key_encrypt_ctr(MegaAesKey* aes_key, guchar* from, guchar* to, gsize len)
+void mega_aes_key_encrypt_ctr(MegaAesKey* aes_key, guchar* nonce, guint64 position, const guchar* from, guchar* to, gsize len)
 {
   g_return_if_fail(MEGA_IS_AES_KEY(aes_key));
+  g_return_if_fail(nonce != NULL);
   g_return_if_fail(from != NULL);
   g_return_if_fail(to != NULL);
   g_return_if_fail(len > 0);
 
-  AES_ctr128_encrypt(from, to, len, &aes_key->priv->enc_key, aes_key->priv->ctr_iv, aes_key->priv->ctr_ecount, &aes_key->priv->ctr_num);
+  // for ctr
+  union 
+  {
+    guchar iv[16];
+    struct 
+    {
+      guchar nonce[8];
+      guint64 position;
+    };
+  } ctr;
+
+  memcpy(ctr.nonce, nonce, 8);
+  ctr.position = GUINT64_TO_BE(position);
+
+  ctr_crypt(&aes_key->priv->enc_key, (nettle_crypt_func*)aes_encrypt, AES_BLOCK_SIZE, ctr.iv, len, to, from);
 }
 
 /**

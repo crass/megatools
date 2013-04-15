@@ -161,7 +161,7 @@ void test_aes_encrypt(void)
   g_assert(memcmp(g_bytes_get_data(plain_bytes, NULL), plain, 16) == 0);
 
   // INVALID use of UBase64 funcs
-  g_test_expect_message(G_LOG_DOMAIN, G_LOG_LEVEL_CRITICAL, "*(len % 16) == 0*failed*");
+  g_test_expect_message(G_LOG_DOMAIN, G_LOG_LEVEL_CRITICAL, "*(len % AES_BLOCK_SIZE) == 0*failed*");
   gchar* non_multiple_of_16 = mega_aes_key_encrypt(k, plain, 18);
   g_test_assert_expected_messages();
   g_assert(non_multiple_of_16 == NULL);

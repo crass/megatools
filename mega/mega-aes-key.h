@@ -96,8 +96,7 @@ GBytes*                 mega_aes_key_decrypt_cbc        (MegaAesKey* aes_key, co
 void                    mega_aes_key_encrypt_cbc_raw    (MegaAesKey* aes_key, const guchar* plain, guchar* cipher, gsize len);
 void                    mega_aes_key_decrypt_cbc_raw    (MegaAesKey* aes_key, const guchar* cipher, guchar* plain, gsize len);
 
-void                    mega_aes_key_setup_ctr          (MegaAesKey* aes_key, guchar* nonce, guint64 position);
-void                    mega_aes_key_encrypt_ctr        (MegaAesKey* aes_key, guchar* from, guchar* to, gsize len);
+void                    mega_aes_key_encrypt_ctr        (MegaAesKey* aes_key, guchar* nonce, guint64 position, const guchar* from, guchar* to, gsize len);
 
 gchar*                  mega_aes_key_make_username_hash (MegaAesKey* aes_key, const gchar* username);
 

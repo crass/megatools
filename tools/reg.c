@@ -32,7 +32,7 @@ static GOptionEntry entries[] =
   { "email",       'e',   0, G_OPTION_ARG_STRING,  &opt_email,      "Your email (will be your username)",            "EMAIL"    },
   { "password",    'p',   0, G_OPTION_ARG_STRING,  &opt_password,   "Your password",                                 "PASSWORD" },
   { "register",   '\0',   0, G_OPTION_ARG_NONE,    &opt_register,   "Perform registration",                          NULL       },
-  { "verify",     '\0',   0, G_OPTION_ARG_STRING,  &opt_verify,     "Finish registration (pass verification link)",  "URL"      },
+  { "verify",     '\0',   0, G_OPTION_ARG_STRING,  &opt_verify,     "Finish registration (pass verification link)",  "STATE"      },
   { "scripted",   '\0',   0, G_OPTION_ARG_NONE,    &opt_script,     "Return script friendly output from --register", NULL       },
   { NULL }
 };
@@ -115,7 +115,7 @@ int main(int ac, char* av[])
   gchar* signup_key = NULL;
   mega_session* s;
 
-  tool_init_bare(&ac, &av, "- register a new mega.co.nz account", entries);
+  tool_init_bare(&ac, &av, "LINK - register a new mega.co.nz account", entries);
 
   if (opt_verify && opt_register)
   {
@@ -133,13 +133,13 @@ int main(int ac, char* av[])
 
     if (!opt_email)
     {
-      g_printerr("ERROR: You must specify name for your new mega.co.nz account\n");
+      g_printerr("ERROR: You must specify email for your new mega.co.nz account\n");
       return 1;
     }
 
     if (!opt_password)
     {
-      g_printerr("ERROR: You must specify name for your new mega.co.nz account\n");
+      g_printerr("ERROR: You must specify password for your new mega.co.nz account\n");
       return 1;
     }
 
@@ -148,7 +148,7 @@ int main(int ac, char* av[])
   {
     if (ac != 2)
     {
-      g_printerr("ERROR: You must specify signup key or link from the verification email\n");
+      g_printerr("ERROR: You must specify signup key and a link from the verification email\n");
       return 1;
     }
 

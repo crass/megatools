@@ -3864,13 +3864,16 @@ gboolean mega_session_dl(mega_session* s, const gchar* handle, const gchar* key,
     goto err3;
   }
 
-  if (!g_output_stream_close(G_OUTPUT_STREAM(data.stream), NULL, &local_err))
+  if (data.stream)
   {
-    g_propagate_prefixed_error(err, local_err, "Can't close downloaded file: ");
-    goto err3;
-  }
+    if (!g_output_stream_close(G_OUTPUT_STREAM(data.stream), NULL, &local_err))
+    {
+      g_propagate_prefixed_error(err, local_err, "Can't close downloaded file: ");
+      goto err3;
+    }
 
-  g_object_unref(data.stream);
+    g_object_unref(data.stream);
+  }
 
   // check mac of the downloaded file
   guchar meta_mac_xor_calc[8];
@@ -3891,7 +3894,8 @@ gboolean mega_session_dl(mega_session* s, const gchar* handle, const gchar* key,
 
 err3:
   http_free(h);
-  g_object_unref(data.stream);
+  if (data.stream)
+    g_object_unref(data.stream);
 err2:
   g_free(node_key);
   g_free(at);

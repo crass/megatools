@@ -1468,7 +1468,7 @@ static gchar* api_call_do(SJsonGen* gen, mega_session* s, gchar expects, gint* e
   request = s_json_gen_done(gen);
 
   gchar* method = s_json_get_member_string(s_json_get_element(request, 0), "a");
-  //g_print("ME %s\n", method);
+
   response = api_request(s, request, err);
   g_free(request);
 

@@ -37,21 +37,21 @@
 #include "utils.h"
 
 #include <string.h>
-#include <openssl/bn.h>
-#include <openssl/rsa.h>
-#include <openssl/rand.h>
-#include <openssl/err.h>
+#include <nettle/rsa.h>
 
 struct _MegaRsaKeyPrivate
 {
   // priv
-  BIGNUM* p;
-  BIGNUM* q;
-  BIGNUM* d;
-  BIGNUM* u; // p^-1 mod q
+  gboolean privk_loaded;
+  mpz_t p;
+  mpz_t q;
+  mpz_t d;
+  mpz_t u; // p^-1 mod q
+
   // pub
-  BIGNUM* m;
-  BIGNUM* e;
+  gboolean pubk_loaded;
+  mpz_t m;
+  mpz_t e;
 };
 
 // {{{ GObject property and signal enums
@@ -76,131 +76,99 @@ static guint signals[N_SIGNALS];
 #define MPI_BYTES(ptr) ((MPI_BITS(ptr) + 7) / 8)
 #define MPI_SIZE(ptr) (MPI_BYTES(ptr) + MPI_HDRSIZE)
 #define MPI_HDRSIZE 2
-#define MPI2BN(ptr) \
-  BN_bin2bn((ptr) + MPI_HDRSIZE, MPI_BYTES(ptr), NULL)
 
-static void append_mpi_from_bn(GString* buf, BIGNUM* n)
+static void write_mpi(GString* buf, mpz_t n)
 {
   g_return_if_fail(buf != NULL);
   g_return_if_fail(n != NULL);
 
-  gsize size = BN_num_bytes(n);
+  gsize size_bits = mpz_sizeinbase(n, 2);
+  gsize size = (size_bits + 7) / 8;
   gsize off = buf->len;
 
   g_string_set_size(buf, buf->len + size + MPI_HDRSIZE);
 
-  MPI_SET_BITS(buf->str + off, BN_num_bits(n));
-  BN_bn2bin(n, buf->str + off + MPI_HDRSIZE);
+  MPI_SET_BITS(buf->str + off, size_bits);
+  mpz_export(buf->str + off + MPI_HDRSIZE, NULL, 1, 1, 1, 0, n);
 }
 
-static void clear_pub_key(MegaRsaKey* rsa_key)
+static gboolean read_mpi(const guchar* buf, const guchar* end, const guchar** next, mpz_t n)
 {
-  MegaRsaKeyPrivate* priv = rsa_key->priv;
+  gsize size;
 
-  if (priv->m) BN_free(priv->m);
-  if (priv->e) BN_free(priv->e);
+  g_return_val_if_fail(buf != NULL, FALSE);
+  g_return_val_if_fail(end != NULL, FALSE);
+  g_return_val_if_fail(n != NULL, FALSE);
 
-  priv->m = priv->e = NULL;
+  if (end - buf < 2)
+    return FALSE;
+
+  size = MPI_SIZE(buf);
+  if (end - buf < size)
+    return FALSE;
+
+  mpz_import(n, MPI_BYTES(buf), 1, 1, 1, 0, buf + MPI_HDRSIZE);
+
+  if (next)
+    *next = buf + size;
+
+  return TRUE;
 }
 
-static void clear_priv_key(MegaRsaKey* rsa_key)
+static void decrypt_rsa(mpz_t r, mpz_t m, mpz_t d, mpz_t p, mpz_t q, mpz_t u)
 {
-  MegaRsaKeyPrivate* priv = rsa_key->priv;
+  mpz_t xp, mod_mp, mod_dp1, p1, xq, mod_mq, mod_dq1, q1, t;
 
-  if (priv->p) BN_free(priv->p);
-  if (priv->q) BN_free(priv->q);
-  if (priv->d) BN_free(priv->d);
-  if (priv->u) BN_free(priv->u);
+  g_return_if_fail(r != NULL);
+  g_return_if_fail(m != NULL);
+  g_return_if_fail(d != NULL);
+  g_return_if_fail(p != NULL);
+  g_return_if_fail(q != NULL);
+  g_return_if_fail(u != NULL);
 
-  priv->p = priv->q = priv->d = priv->u = NULL;
-}
-
-static BIGNUM* rsa_decrypt(BIGNUM* m, BIGNUM* d, BIGNUM* p, BIGNUM* q, BIGNUM* u)
-{
-  BN_CTX* ctx;
-  BIGNUM *xp, *mod_mp, *mod_dp1, *p1, *xq, *mod_mq, *mod_dq1, *q1, *t, *x;
-
-  g_return_val_if_fail(m != NULL, NULL);
-  g_return_val_if_fail(d != NULL, NULL);
-  g_return_val_if_fail(p != NULL, NULL);
-  g_return_val_if_fail(q != NULL, NULL);
-  g_return_val_if_fail(u != NULL, NULL);
-
-  ctx = BN_CTX_new();
-
-  xp = BN_new();
-  xq = BN_new();
-  mod_mp = BN_new();
-  mod_mq = BN_new();
-  mod_dp1 = BN_new();
-  mod_dq1 = BN_new();
-  p1 = BN_new();
-  q1 = BN_new();
-  t = BN_new();
-  x = BN_new();
+  mpz_inits(xp, mod_mp, mod_dp1, p1, xq, mod_mq, mod_dq1, q1, t, NULL);
 
   // var xp = bmodexp(bmod(m,p), bmod(d,bsub(p,[1])), p);
-  BN_mod(mod_mp, m, p, ctx);
-  BN_sub(p1, p, BN_value_one());
-  BN_mod(mod_dp1, d, p1, ctx);
-  BN_mod_exp(xp, mod_mp, mod_dp1, p, ctx);
+  mpz_mod(mod_mp, m, p);
+  mpz_sub_ui(p1, p, 1);
+  mpz_mod(mod_dp1, d, p1);
+  mpz_powm(xp, mod_mp, mod_dp1, p);
 
   // var xq = bmodexp(bmod(m,q), bmod(d,bsub(q,[1])), q);
-  BN_mod(mod_mq, m, q, ctx);
-  BN_sub(q1, q, BN_value_one());
-  BN_mod(mod_dq1, d, q1, ctx);
-  BN_mod_exp(xq, mod_mq, mod_dq1, q, ctx);
+  mpz_mod(mod_mq, m, q);
+  mpz_sub_ui(q1, q, 1);
+  mpz_mod(mod_dq1, d, q1);
+  mpz_powm(xq, mod_mq, mod_dq1, q);
 
   // var t = bsub(xq,xp);
-  if (BN_ucmp(xq, xp) <= 0)
+  if (mpz_cmp(xq, xp) <= 0)
   {
-    BN_sub(t, xp, xq);
-    BN_mul(x, t, u, ctx);
-    BN_mod(t, x, q, ctx);
-    BN_sub(t, q, t);
+    mpz_sub(t, xp, xq);
+    mpz_mul(r, t, u);
+    mpz_mod(t, r, q);
+    mpz_sub(t, q, t);
   }
   else
   {
-    BN_sub(t, xq, xp);
-    BN_mul(x, t, u, ctx);
-    BN_mod(t, x, q, ctx);
+    mpz_sub(t, xq, xp);
+    mpz_mul(r, t, u);
+    mpz_mod(t, r, q);
   }
 
-  BN_mul(x, t, p, ctx);
-  BN_add(x, x, xp);
+  mpz_mul(r, t, p);
+  mpz_add(r, r, xp);
 
-  BN_free(xp);
-  BN_free(xq);
-  BN_free(mod_mp);
-  BN_free(mod_mq);
-  BN_free(mod_dp1);
-  BN_free(mod_dq1);
-  BN_free(p1);
-  BN_free(q1);
-  BN_free(t);
-
-  BN_CTX_free(ctx);
-
-  return x;
+  mpz_clears(xp, mod_mp, mod_dp1, p1, xq, mod_mq, mod_dq1, q1, t, NULL);
 }
 
-static BIGNUM* rsa_encrypt(BIGNUM* s, BIGNUM* e, BIGNUM* m)
+static void encrypt_rsa(mpz_t r, mpz_t s, mpz_t e, mpz_t m)
 {
-  BN_CTX* ctx;
-  BIGNUM *r;
+  g_return_if_fail(r != NULL);
+  g_return_if_fail(s != NULL);
+  g_return_if_fail(e != NULL);
+  g_return_if_fail(m != NULL);
 
-  g_return_val_if_fail(s != NULL, NULL);
-  g_return_val_if_fail(e != NULL, NULL);
-  g_return_val_if_fail(m != NULL, NULL);
-
-  ctx = BN_CTX_new();
-  r = BN_new();
-
-  BN_mod_exp(r, s, e, m, ctx);
-
-  BN_CTX_free(ctx);
-
-  return r;
+  mpz_powm(r, s, e, m);
 }
 
 /**
@@ -229,39 +197,43 @@ MegaRsaKey* mega_rsa_key_new(void)
  */
 gchar* mega_rsa_key_encrypt(MegaRsaKey* rsa_key, const guchar* data, gsize len)
 {
-  BIGNUM *c, *m;
+  mpz_t c, m;
+  guchar* message;
+  gsize message_length;
+  GString* cipher_mpi;
+  gchar* str;
 
   g_return_val_if_fail(MEGA_IS_RSA_KEY(rsa_key), NULL);
   g_return_val_if_fail(data != NULL, NULL);
   g_return_val_if_fail(len > 0, NULL);
+  g_return_val_if_fail(rsa_key->priv->pubk_loaded, NULL);
 
-  gsize message_length = (BN_num_bits(rsa_key->priv->m) >> 3) - 1;
+  message_length = (mpz_sizeinbase(rsa_key->priv->m, 2) >> 3) - 1;
 
   // check that data fits the message
   g_return_val_if_fail(len <= message_length, NULL);
 
   // create random padded message from data
-  guchar* message = g_malloc0(message_length);
+  message = g_malloc0(message_length);
   memcpy(message, data, len);
-  RAND_bytes(message + len, message_length - len);
-  m = BN_bin2bn(message, message_length, NULL);
+  mega_randomness(message + len, message_length - len);
+  mpz_init(m);
+  mpz_import(m, message_length, 1, 1, 1, 0, message);
   g_free(message);
 
   // encrypt mesasge
-  c = rsa_encrypt(m, rsa_key->priv->e, rsa_key->priv->m);
-  BN_free(m);
+  mpz_init(c);
+  encrypt_rsa(c, m, rsa_key->priv->e, rsa_key->priv->m);
+  mpz_clear(m);
 
   // encode result as MPI
-  guchar* cipher_mpi = g_malloc0(BN_num_bytes(c) + MPI_HDRSIZE);
-  BN_bn2bin(c, cipher_mpi + MPI_HDRSIZE);
-  MPI_SET_BITS(cipher_mpi, BN_num_bits(c));
+  cipher_mpi = g_string_sized_new(256);
+  write_mpi(cipher_mpi, c);
+  mpz_clear(c);
 
   // right align 
-  gchar* str = mega_base64urlencode(cipher_mpi, BN_num_bytes(c) + MPI_HDRSIZE);
-
-  g_free(cipher_mpi);
-  BN_free(c);
-
+  str = mega_base64urlencode(cipher_mpi->str, cipher_mpi->len);
+  g_string_free(cipher_mpi, TRUE);
   return str;
 }
 
@@ -276,49 +248,52 @@ gchar* mega_rsa_key_encrypt(MegaRsaKey* rsa_key, const guchar* data, gsize len)
  */
 GBytes* mega_rsa_key_decrypt(MegaRsaKey* rsa_key, const gchar* cipher)
 {
+  MegaRsaKeyPrivate* priv;
   gsize cipherlen = 0;
   guchar* cipher_raw;
   guchar* data;
-  BIGNUM *c, *m;
-  MegaRsaKeyPrivate* priv;
   gssize message_length;
+  gsize m_size_bits, m_size;
+  mpz_t c, m;
 
   g_return_val_if_fail(MEGA_IS_RSA_KEY(rsa_key), NULL);
   g_return_val_if_fail(cipher != NULL, NULL);
-
-  if (rsa_key->priv->m)
-    message_length = (BN_num_bits(rsa_key->priv->m) >> 3) - 1;
-  else
-    message_length = -1;
+  g_return_val_if_fail(rsa_key->priv->privk_loaded, NULL);
 
   priv = rsa_key->priv;
+
+  if (priv->pubk_loaded)
+    message_length = (mpz_sizeinbase(priv->m, 2) >> 3) - 1;
+  else
+    message_length = -1;
 
   cipher_raw = mega_base64urldecode(cipher, &cipherlen);
   if (cipher_raw == NULL)
     return NULL;
 
-  if (MPI_SIZE(cipher_raw) > cipherlen)
+  mpz_init(c);
+  if (!read_mpi(cipher_raw, cipher_raw + cipherlen, NULL, c))
   {
     g_free(cipher_raw);
     return NULL;
   }
 
-  c = MPI2BN(cipher_raw);
   g_free(cipher_raw);
 
-  m = rsa_decrypt(c, priv->d, priv->p, priv->q, priv->u);
-  BN_free(c);
+  mpz_init(m);
+  decrypt_rsa(m, c, priv->d, priv->p, priv->q, priv->u);
+  mpz_clear(c);
 
-  if (!m) 
-    return NULL;
+  m_size_bits = mpz_sizeinbase(m, 2);
+  m_size = (m_size_bits + 7) / 8;
 
   if (message_length < 0)
-    message_length = BN_num_bytes(m);
+    message_length = m_size;
 
   // message doesn't fit message length of the original
-  if (message_length < BN_num_bytes(m))
+  if (message_length < m_size)
   {
-    BN_free(m);
+    mpz_clear(m);
     return NULL;
   }
 
@@ -326,220 +301,10 @@ GBytes* mega_rsa_key_decrypt(MegaRsaKey* rsa_key, const gchar* cipher)
 
   // align decoded data to the right side of the message buffer (Mega doesn't do
   // this)
-  BN_bn2bin(m, data + (message_length - BN_num_bytes(m)));
-  BN_free(m);
+  mpz_export(data + (message_length - m_size), NULL, 1, 1, 1, 0, m);
+  mpz_clear(m);
 
   return g_bytes_new_take(data, message_length);
-}
-
-/**
- * mega_rsa_key_load_enc_privk:
- * @rsa_key: a #MegaRsaKey
- * @privk: Mega.co.nz formatted AES encrypted private key.
- * @enc_key: AES key used for decryption.
- *
- * Load encrypted private key.
- *
- * Returns: TRUE on success.
- */
-gboolean mega_rsa_key_load_enc_privk(MegaRsaKey* rsa_key, const gchar* privk, MegaAesKey* enc_key)
-{
-  gsize data_len = 0;
-  const guchar *p, *e;
-  GBytes* bytes;
-  MegaRsaKeyPrivate* priv;
-
-  g_return_val_if_fail(MEGA_IS_RSA_KEY(rsa_key), FALSE);
-  g_return_val_if_fail(privk != NULL, FALSE);
-  g_return_val_if_fail(enc_key != NULL, FALSE);
-
-  priv = rsa_key->priv;
-  clear_priv_key(rsa_key);
-
-  bytes = mega_aes_key_decrypt(enc_key, privk);
-  if (!bytes)
-    return FALSE;
-
-  p = g_bytes_get_data(bytes, &data_len);;
-  e = p + data_len;
-
-  if (p + MPI_SIZE(p) > e)
-    goto bounds;
-  
-  priv->p = MPI2BN(p); p += MPI_SIZE(p);
-
-  if (p + MPI_SIZE(p) > e)
-    goto bounds;
-
-  priv->q = MPI2BN(p); p += MPI_SIZE(p);
-
-  if (p + MPI_SIZE(p) > e)
-    goto bounds;
-
-  priv->d = MPI2BN(p); p += MPI_SIZE(p);
-
-  if (p + MPI_SIZE(p) > e)
-    goto bounds;
-
-  priv->u = MPI2BN(p);
-
-  g_bytes_unref(bytes);
-  return TRUE;
-
-bounds:
-  g_bytes_unref(bytes);
-  return FALSE;
-}
-
-/**
- * mega_rsa_key_load_pubk:
- * @rsa_key: a #MegaRsaKey
- * @pubk: Mega.co.nz formatted public key.
- *
- * Load public key.
- *
- * Returns: TRUE on success.
- */
-gboolean mega_rsa_key_load_pubk(MegaRsaKey* rsa_key, const gchar* pubk)
-{
-  gsize data_len = 0;
-  guchar *data, *p, *e;
-
-  g_return_val_if_fail(MEGA_IS_RSA_KEY(rsa_key), FALSE);
-  g_return_val_if_fail(pubk != NULL, FALSE);
-
-  clear_pub_key(rsa_key);
-
-  data = mega_base64urldecode(pubk, &data_len);
-  if (data == NULL)
-    return FALSE;
-
-  p = data;
-  e = p + data_len;
-
-  if (p + MPI_SIZE(p) > e)
-    goto bounds;
-
-  BN_free(rsa_key->priv->m);
-  rsa_key->priv->m = MPI2BN(p); p += MPI_SIZE(p);
-
-  if (p + MPI_SIZE(p) > e)
-    goto bounds;
-
-  BN_free(rsa_key->priv->e);
-  rsa_key->priv->e = MPI2BN(p);
-
-  g_free(data);
-  return TRUE;
-
-bounds:
-  g_free(data);
-  return FALSE;
-}
-
-/**
- * mega_rsa_key_get_pubk:
- * @rsa_key: a #MegaRsaKey
- *
- * Get public key in Mega.co.nz format.
- *
- * Returns: Public key.
- */
-gchar* mega_rsa_key_get_pubk(MegaRsaKey* rsa_key)
-{
-  g_return_val_if_fail(MEGA_IS_RSA_KEY(rsa_key), NULL);
-
-  GString* data = g_string_sized_new(128 * 3);
-
-  append_mpi_from_bn(data, rsa_key->priv->m);
-  append_mpi_from_bn(data, rsa_key->priv->e);
-
-  gchar* str = mega_base64urlencode(data->str, data->len);
-
-  g_string_free(data, TRUE);
-
-  return str;
-}
-
-/**
- * mega_rsa_key_get_enc_privk:
- * @rsa_key: a #MegaRsaKey
- * @enc_key: AES key used for encryption.
- *
- * Get encrypted private key in Mega.co.nz format.
- *
- * Returns: Encrypted private key.
- */
-gchar* mega_rsa_key_get_enc_privk(MegaRsaKey* rsa_key, MegaAesKey* enc_key)
-{
-  g_return_val_if_fail(MEGA_IS_RSA_KEY(rsa_key), NULL);
-  g_return_val_if_fail(enc_key != NULL, NULL);
-
-  GString* data = g_string_sized_new(128 * 7);
-
-  // XXX: check
-
-  append_mpi_from_bn(data, rsa_key->priv->p);
-  append_mpi_from_bn(data, rsa_key->priv->q);
-  append_mpi_from_bn(data, rsa_key->priv->d);
-  append_mpi_from_bn(data, rsa_key->priv->u);
-
-  // add random padding
-  gsize off = data->len;
-  gsize pad = data->len % 16 ? 16 - (data->len % 16) : 0;
-  if (pad)
-  {
-    g_string_set_size(data, data->len + pad);
-    RAND_bytes(data->str + off, pad);
-  }
-
-  gchar* str = mega_aes_key_encrypt(enc_key, data->str, data->len);
-
-  g_string_free(data, TRUE);
-
-  return str;
-}
-
-/**
- * mega_rsa_key_generate:
- * @rsa_key: a #MegaRsaKey
- *
- * Generate new RSA key.
- *
- * Returns: TRUE on success.
- */
-gboolean mega_rsa_key_generate(MegaRsaKey* rsa_key)
-{
-  RSA* key;
-
-  g_return_val_if_fail(MEGA_IS_RSA_KEY(rsa_key), FALSE);
-
-  key = RSA_generate_key(2048, RSA_3, NULL, NULL);
-  if (!key)
-    return FALSE;
-
-  if (RSA_check_key(key) != 1)
-  {
-    RSA_free(key);
-    return FALSE;
-  }
-
-  clear_priv_key(rsa_key);
-  clear_pub_key(rsa_key);
-
-  // private part
-  rsa_key->priv->p = BN_dup(key->q);
-  rsa_key->priv->q = BN_dup(key->p);
-  rsa_key->priv->d = BN_dup(key->d);
-  rsa_key->priv->u = BN_dup(key->iqmp);
-
-  // public part
-  rsa_key->priv->m = BN_dup(key->n);
-  rsa_key->priv->e = BN_dup(key->e);
-
-  RSA_free(key);
-
-  return TRUE;
 }
 
 /**
@@ -573,6 +338,204 @@ gchar* mega_rsa_key_decrypt_sid(MegaRsaKey* rsa_key, const gchar* cipher)
   return NULL;
 }
 
+/**
+ * mega_rsa_key_load_enc_privk:
+ * @rsa_key: a #MegaRsaKey
+ * @privk: Mega.co.nz formatted AES encrypted private key.
+ * @enc_key: AES key used for decryption.
+ *
+ * Load encrypted private key.
+ *
+ * Returns: TRUE on success.
+ */
+gboolean mega_rsa_key_load_enc_privk(MegaRsaKey* rsa_key, const gchar* privk, MegaAesKey* enc_key)
+{
+  MegaRsaKeyPrivate* priv;
+  gsize data_len = 0;
+  const guchar *start, *end;
+  GBytes* bytes;
+  gboolean success;
+
+  g_return_val_if_fail(MEGA_IS_RSA_KEY(rsa_key), FALSE);
+  g_return_val_if_fail(privk != NULL, FALSE);
+  g_return_val_if_fail(MEGA_IS_AES_KEY(enc_key), FALSE);
+
+  priv = rsa_key->priv;
+
+  bytes = mega_aes_key_decrypt(enc_key, privk);
+  if (!bytes)
+    return FALSE;
+
+  start = g_bytes_get_data(bytes, &data_len);;
+  end = start + data_len;
+
+  success = 
+         read_mpi(start, end, &start, priv->p)
+      && read_mpi(start, end, &start, priv->q)
+      && read_mpi(start, end, &start, priv->d)
+      && read_mpi(start, end, &start, priv->u);
+
+  priv->privk_loaded = success;
+
+  g_bytes_unref(bytes);
+  return success;
+}
+
+/**
+ * mega_rsa_key_load_pubk:
+ * @rsa_key: a #MegaRsaKey
+ * @pubk: Mega.co.nz formatted public key.
+ *
+ * Load public key.
+ *
+ * Returns: TRUE on success.
+ */
+gboolean mega_rsa_key_load_pubk(MegaRsaKey* rsa_key, const gchar* pubk)
+{
+  MegaRsaKeyPrivate* priv;
+  gsize data_len = 0;
+  guchar *data;
+  const guchar *start, *end;
+  gboolean success;
+
+  g_return_val_if_fail(MEGA_IS_RSA_KEY(rsa_key), FALSE);
+  g_return_val_if_fail(pubk != NULL, FALSE);
+
+  priv = rsa_key->priv;
+
+  data = mega_base64urldecode(pubk, &data_len);
+  if (data == NULL)
+    return FALSE;
+
+  start = data;
+  end = start + data_len;
+
+  success = 
+       read_mpi(start, end, &start, priv->m)
+    && read_mpi(start, end, &start, priv->e);
+
+  priv->pubk_loaded = success;
+
+  g_free(data);
+  return success;
+}
+
+/**
+ * mega_rsa_key_get_pubk:
+ * @rsa_key: a #MegaRsaKey
+ *
+ * Get public key in Mega.co.nz format.
+ *
+ * Returns: Public key.
+ */
+gchar* mega_rsa_key_get_pubk(MegaRsaKey* rsa_key)
+{
+  MegaRsaKeyPrivate* priv;
+  GString* data;
+  gchar* str;
+
+  g_return_val_if_fail(MEGA_IS_RSA_KEY(rsa_key), NULL);
+
+  priv = rsa_key->priv;
+
+  data = g_string_sized_new(128 * 3);
+
+  write_mpi(data, priv->m);
+  write_mpi(data, priv->e);
+
+  str = mega_base64urlencode(data->str, data->len);
+  g_string_free(data, TRUE);
+  return str;
+}
+
+/**
+ * mega_rsa_key_get_enc_privk:
+ * @rsa_key: a #MegaRsaKey
+ * @enc_key: AES key used for encryption.
+ *
+ * Get encrypted private key in Mega.co.nz format.
+ *
+ * Returns: Encrypted private key.
+ */
+gchar* mega_rsa_key_get_enc_privk(MegaRsaKey* rsa_key, MegaAesKey* enc_key)
+{
+  MegaRsaKeyPrivate* priv;
+  GString* data;
+  gchar* str;
+  gsize off, pad;
+
+  g_return_val_if_fail(MEGA_IS_RSA_KEY(rsa_key), NULL);
+  g_return_val_if_fail(MEGA_IS_AES_KEY(enc_key), NULL);
+
+  priv = rsa_key->priv;
+  data = g_string_sized_new(128 * 7);
+
+  write_mpi(data, priv->p);
+  write_mpi(data, priv->q);
+  write_mpi(data, priv->d);
+  write_mpi(data, priv->u);
+
+  // add random padding
+  off = data->len;
+  pad = data->len % 16 ? 16 - (data->len % 16) : 0;
+  if (pad)
+  {
+    g_string_set_size(data, data->len + pad);
+    mega_randomness(data->str + off, pad);
+  }
+
+  str = mega_aes_key_encrypt(enc_key, data->str, data->len);
+  g_string_free(data, TRUE);
+  return str;
+}
+
+/**
+ * mega_rsa_key_generate:
+ * @rsa_key: a #MegaRsaKey
+ *
+ * Generate new RSA key.
+ *
+ * Returns: TRUE on success.
+ */
+gboolean mega_rsa_key_generate(MegaRsaKey* rsa_key)
+{
+  MegaRsaKeyPrivate* priv;
+  struct rsa_public_key pubk;
+  struct rsa_private_key privk;
+
+  g_return_val_if_fail(MEGA_IS_RSA_KEY(rsa_key), FALSE);
+
+  priv = rsa_key->priv;
+  rsa_private_key_init(&privk);
+  rsa_public_key_init(&pubk);
+
+  mpz_set_ui(pubk.e, 3);
+
+  gboolean success = rsa_generate_keypair(&pubk, &privk, NULL, mega_randomness_nettle, NULL, NULL, 2048, 0);
+  if (!success)
+  {
+    rsa_private_key_clear(&privk);
+    rsa_public_key_clear(&pubk);
+    return FALSE;
+  }
+
+  mpz_set(priv->p, privk.q);
+  mpz_set(priv->q, privk.p);
+  mpz_set(priv->d, privk.d);
+  mpz_set(priv->u, privk.c);
+
+  mpz_set(priv->m, pubk.n);
+  mpz_set(priv->e, pubk.e);
+
+  rsa_private_key_clear(&privk);
+  rsa_public_key_clear(&pubk);
+
+  priv->pubk_loaded = TRUE;
+  priv->privk_loaded = TRUE;
+
+  return TRUE;
+}
+
 // {{{ GObject type setup
 
 static void mega_rsa_key_set_property(GObject *object, guint property_id, const GValue *value, GParamSpec *pspec)
@@ -602,23 +565,32 @@ G_DEFINE_TYPE(MegaRsaKey, mega_rsa_key, G_TYPE_OBJECT);
 static void mega_rsa_key_init(MegaRsaKey *rsa_key)
 {
   rsa_key->priv = G_TYPE_INSTANCE_GET_PRIVATE(rsa_key, MEGA_TYPE_RSA_KEY, MegaRsaKeyPrivate);
+
+  MegaRsaKeyPrivate* priv = rsa_key->priv;
+
+  mpz_inits(priv->p, priv->q, priv->d, priv->u, priv->m, priv->e, NULL);
 }
 
 static void mega_rsa_key_dispose(GObject *object)
 {
-  //MegaRsaKey *rsa_key = MEGA_RSA_KEY(object);
+  MegaRsaKey *rsa_key = MEGA_RSA_KEY(object);
+
   //
   // Free everything that may hold reference to MegaRsaKey
   //
+
   G_OBJECT_CLASS(mega_rsa_key_parent_class)->dispose(object);
 }
 
 static void mega_rsa_key_finalize(GObject *object)
 {
   MegaRsaKey *rsa_key = MEGA_RSA_KEY(object);
+  MegaRsaKeyPrivate* priv = rsa_key->priv;
 
-  clear_priv_key(rsa_key);
-  clear_pub_key(rsa_key);
+  mpz_clears(priv->p, priv->q, priv->d, priv->u, priv->m, priv->e, NULL);
+
+  //rsa_private_key_clear(&rsa_key->priv->priv);
+  //rsa_public_key_clear(&rsa_key->priv->pub);
   
   G_OBJECT_CLASS(mega_rsa_key_parent_class)->finalize(object);
 }

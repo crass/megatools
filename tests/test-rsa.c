@@ -37,17 +37,14 @@ gchar* trim_last_block(const gchar* str)
 
 void test_rsa(void)
 {
-  // my keys
+  // test keys
   MegaAesKey* mk = mega_aes_key_new_from_ubase64(MY_MASTER_KEY);
   MegaRsaKey* rk = mega_rsa_key_new();
-  
-  g_assert(mega_rsa_key_load_enc_privk(rk, MY_PRIVK_ENC, mk));
-  g_assert(mega_rsa_key_load_pubk(rk, MY_PUBK));
+  MegaRsaKey* rak = mega_rsa_key_new();
+  g_assert(mega_rsa_key_generate(rak));
 
-  GBytes* sid_bytes = mega_rsa_key_decrypt(rk, MY_CSID);
-  g_assert_cmpuint(g_bytes_get_size(sid_bytes), >=, 43);
-  gchar* sid = mega_base64urlencode(g_bytes_get_data(sid_bytes, NULL), 43);
-  g_assert_cmpstr(sid, ==, MY_SID);
+  g_assert(mega_rsa_key_load_pubk(rk, MY_PUBK));
+  g_assert(mega_rsa_key_load_enc_privk(rk, MY_PRIVK_ENC, mk));
 
   g_assert_cmpstr(mega_rsa_key_get_pubk(rk), ==, MY_PUBK);
   // last block can be different, because it's random padded
@@ -62,6 +59,14 @@ void test_rsa(void)
   g_assert_cmpuint(g_bytes_get_size(plain_bytes), >, 16);
   g_assert(memcmp(g_bytes_get_data(plain_bytes, NULL), plain, 16) == 0);
 
+  // test encryption with random key
+
+  cipher = mega_rsa_key_encrypt(rak, plain, 16);
+  plain_bytes = mega_rsa_key_decrypt(rak, cipher);
+  g_assert(plain_bytes != NULL);
+  g_assert_cmpuint(g_bytes_get_size(plain_bytes), >, 16);
+  g_assert(memcmp(g_bytes_get_data(plain_bytes, NULL), plain, 16) == 0);
+
   // Mega BUG: Plaintext can't start with zero!
   memset(plain, 0, 16);
   cipher = mega_rsa_key_encrypt(rk, plain, 16);
@@ -70,16 +75,22 @@ void test_rsa(void)
   g_assert_cmpuint(g_bytes_get_size(plain_bytes), >, 16);
   g_assert(memcmp(g_bytes_get_data(plain_bytes, NULL), plain, 16) == 0);
 
-  // generate key
+  // test session id decryption
 
-  g_assert(mega_rsa_key_generate(rk));
-  gchar* privk1 = mega_rsa_key_get_enc_privk(rk, mk);
-  gchar* pubk1 = mega_rsa_key_get_pubk(rk);
+  GBytes* sid_bytes = mega_rsa_key_decrypt(rk, MY_CSID);
+  g_assert_cmpuint(g_bytes_get_size(sid_bytes), >=, 43);
+  gchar* sid = mega_base64urlencode(g_bytes_get_data(sid_bytes, NULL), 43);
+  g_assert_cmpstr(sid, ==, MY_SID);
+
+  // test key generator
+
+  gchar* privk1 = mega_rsa_key_get_enc_privk(rak, mk);
+  gchar* pubk1 = mega_rsa_key_get_pubk(rak);
 
   g_assert(mega_rsa_key_generate(rk));
   gchar* privk2 = mega_rsa_key_get_enc_privk(rk, mk);
   gchar* pubk2 = mega_rsa_key_get_pubk(rk);
-
+  
   g_assert_cmpstr(pubk1, !=, pubk2);
   // last block can be different, because it's random padded
   g_assert_cmpstr(trim_last_block(privk1), !=, trim_last_block(privk2));

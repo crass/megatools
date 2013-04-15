@@ -11,4 +11,4 @@ mkdir -p m4
 autoreconf -v --install || exit 1
 cd $ORIGDIR || exit $?
 
-$srcdir/configure --enable-maintainer-mode --enable-warnings "$@"
+$srcdir/configure --enable-maintainer-mode --enable-warnings --enable-docs-build "$@"

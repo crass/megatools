@@ -19,9 +19,13 @@ EXTRA_DIST = \
 	$(addsuffix .txt, $(MAN1) $(MAN5) $(MAN7)) \
 	$(BUILT_SOURCES)
 
+if ENABLE_DOCS_BUILD
+
 DISTCLEANFILES = $(BUILT_SOURCES)
 
 %.1 %.5 %.7: %.txt shared-options.txt remote-paths.txt footer.txt asciidoc.conf
 	a2x --asciidoc-opts="-f asciidoc.conf" -f manpage $<
 	sed -i 's/\[FIXME: manual]/Megatools Manual/' $@
 	sed -i 's/\[FIXME: source]/megatools $(VERSION)/' $@
+
+endif

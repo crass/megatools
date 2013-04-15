@@ -63,6 +63,11 @@ AS_IF([test "x$enable_warnings" = "xyes"], [
   enable_warnings=no
 ])
 
+# enable docs building
+AC_ARG_ENABLE([docs-build], AC_HELP_STRING([--enable-docs-build], [Build man pages instead of using bundled ones.]))
+AM_CONDITIONAL([ENABLE_DOCS_BUILD], [test "x$enable_docs_build" = xyes])
+AS_IF([test "x$enable_docs_build" = "xyes"], [], [enable_docs_build=no])
+
 AC_CONFIG_FILES([
   Makefile
   libmega.pc
@@ -79,6 +84,7 @@ cat << EOF
 
 Configured features:
 
+  docs build: $enable_docs_build
   warnings: $enable_warnings
   megafs: $ENABLE_FUSE (requires fuse)
   tests: $ENABLE_TESTS (requires glib-2.0 >= 2.34.0)

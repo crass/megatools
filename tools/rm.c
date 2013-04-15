@@ -31,9 +31,19 @@ int main(int ac, char* av[])
 
   tool_init(&ac, &av, "- remove files from mega.co.nz", entries);
 
+  if (ac < 2)
+  {
+    g_printerr("ERROR: No files specified for removal!\n");
+    tool_fini(NULL);
+    return 1;
+  }
+
   s = tool_start_session();
   if (!s)
+  {
+    tool_fini(NULL);
     return 1;
+  }
 
   gint i;
   for (i = 1; i < ac; i++)

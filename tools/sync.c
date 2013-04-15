@@ -22,6 +22,7 @@
 static gchar* opt_remote_path;
 static gchar* opt_local_path;
 static gboolean opt_download;
+static gboolean opt_noprogress;
 static gboolean opt_dryrun;
 static mega_session* s;
 
@@ -30,13 +31,14 @@ static GOptionEntry entries[] =
   { "remote",        'r',   0, G_OPTION_ARG_STRING,  &opt_remote_path,  "Remote directory",                 "PATH"  },
   { "local",         'l',   0, G_OPTION_ARG_STRING,  &opt_local_path,   "Local directory",                  "PATH"  },
   { "download",      'd',   0, G_OPTION_ARG_NONE,    &opt_download,     "Download files from mega",         NULL    },
+  { "no-progress",   '\0',  0, G_OPTION_ARG_NONE,    &opt_noprogress,   "Disable progress bar",             NULL    },
   { "dryrun",        'n',   0, G_OPTION_ARG_NONE,    &opt_dryrun,       "Don't perform any actual changes", NULL    },
   { NULL }
 };
 
 static gboolean status_callback(mega_status_data* data, gpointer userdata)
 {
-  if (data->type == MEGA_STATUS_PROGRESS)
+  if (!opt_noprogress && data->type == MEGA_STATUS_PROGRESS)
   {
     gchar* done_str = g_format_size_full(data->progress.done, G_FORMAT_SIZE_IEC_UNITS);
     gchar* total_str = g_format_size_full(data->progress.total, G_FORMAT_SIZE_IEC_UNITS);
@@ -70,13 +72,16 @@ static gboolean up_sync_file(GFile* root, GFile* file, const gchar* remote_path)
   {
     if (!mega_session_put(s, remote_path, g_file_get_path(file), &local_err))
     {
-      g_print("\r" ESC_CLREOL);
+      if (!opt_noprogress)
+        g_print("\r" ESC_CLREOL);
+
       g_printerr("ERROR: Upload failed for %s: %s\n", remote_path, local_err->message);
       g_clear_error(&local_err);
       return FALSE;
     }
 
-    g_print("\r" ESC_CLREOL);
+    if (!opt_noprogress)
+      g_print("\r" ESC_CLREOL);
   }
 
   return TRUE;
@@ -169,13 +174,16 @@ static gboolean dl_sync_file(mega_node* node, GFile* file, const gchar* remote_p
   {
     if (!mega_session_get(s, g_file_get_path(file), remote_path, &local_err))
     {
-      g_print("\r" ESC_CLREOL);
+      if (!opt_noprogress)
+        g_print("\r" ESC_CLREOL);
+
       g_printerr("ERROR: Download failed for %s: %s\n", remote_path, local_err->message);
       g_clear_error(&local_err);
       return FALSE;
     }
 
-    g_print("\r" ESC_CLREOL);
+    if (!opt_noprogress)
+      g_print("\r" ESC_CLREOL);
   }
 
   return TRUE;
@@ -248,7 +256,10 @@ int main(int ac, char* av[])
 
   s = tool_start_session();
   if (!s)
+  {
+    tool_fini(NULL);
     return 1;
+  }
 
   mega_session_watch_status(s, status_callback, NULL);
 

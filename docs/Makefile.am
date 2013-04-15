@@ -1,4 +1,4 @@
-MAN1 = megadf megadl megaget megals megamkdir megaput megareg megarm megamv megastream megasync megafs
+MAN1 = megadf megadl megaget megals megamkdir megaput megareg megarm megamv megasync megafs
 MAN5 = megarc
 MAN7 = megatools
 

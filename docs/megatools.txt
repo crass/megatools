@@ -78,9 +78,6 @@ man:megaget[1]::
 man:megadl[1]::
 	Download file from a "public" Mega link (doesn't require login)
 
-man:megastream[1]::
-	Streaming download of a file (can be used to preview videos or music)
-
 man:megasync[1]::
 	Upload or download a directory tree
 

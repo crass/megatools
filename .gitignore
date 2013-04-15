@@ -41,7 +41,6 @@ Makefile.in
 /tools/megareg
 /tools/megarm
 /tools/megamv
-/tools/megastream
 /tools/megasync
 /tools/megatest
 /tools/megafs

@@ -28,7 +28,7 @@ megafs_CFLAGS = \
   $(AM_CFLAGS) \
   $(FUSE_CFLAGS)
 
-bin_PROGRAMS = megadf megadl megaget megals megamkdir megaput megareg megarm megamv megastream megasync
+bin_PROGRAMS = megadf megadl megaget megals megamkdir megaput megareg megarm megamv megasync
 
 megadf_SOURCES     = df.c
 megadl_SOURCES     = dl.c
@@ -39,7 +39,6 @@ megaput_SOURCES    = put.c
 megareg_SOURCES    = reg.c
 megarm_SOURCES     = rm.c
 megamv_SOURCES     = mv.c
-megastream_SOURCES = stream.c
 megasync_SOURCES   = sync.c
 
 if ENABLE_FUSE

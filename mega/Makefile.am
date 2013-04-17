@@ -21,6 +21,8 @@ libmega_la_SOURCES = \
   mega-aes-key.h \
   mega-rsa-key.c \
   mega-rsa-key.h \
+  mega-file-key.c \
+  mega-file-key.h \
   mega-chunked-cbc-mac.c \
   mega-chunked-cbc-mac.h \
   mega-http-client.c \

@@ -837,6 +837,9 @@ gssize mega_http_client_read(MegaHttpClient* http_client, guchar* buffer, gsize 
 
   MegaHttpClientPrivate* priv = http_client->priv;
 
+  if (priv->conn_state == CONN_STATE_NONE || priv->conn_state == CONN_STATE_NONE_CONNECTED)
+    return 0;
+
   if (!goto_state(http_client, CONN_STATE_HEADERS_RECEIVED, cancellable, &local_err))
   {
     g_propagate_error(err, local_err);

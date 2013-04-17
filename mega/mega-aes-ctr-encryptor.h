@@ -21,6 +21,7 @@
 #define __MEGA_AES_CTR_ENCRYPTOR_H__
 
 #include <gio/gio.h>
+#include <mega/mega-file-key.h>
 
 #define MEGA_TYPE_AES_CTR_ENCRYPTOR            (mega_aes_ctr_encryptor_get_type())
 #define MEGA_AES_CTR_ENCRYPTOR(obj)            (G_TYPE_CHECK_INSTANCE_CAST((obj), MEGA_TYPE_AES_CTR_ENCRYPTOR, MegaAesCtrEncryptor))
@@ -32,6 +33,12 @@
 typedef struct _MegaAesCtrEncryptor MegaAesCtrEncryptor;
 typedef struct _MegaAesCtrEncryptorClass MegaAesCtrEncryptorClass;
 typedef struct _MegaAesCtrEncryptorPrivate MegaAesCtrEncryptorPrivate;
+
+typedef enum
+{
+  MEGA_AES_CTR_ENCRYPTOR_DIRECTION_ENCRYPT,
+  MEGA_AES_CTR_ENCRYPTOR_DIRECTION_DECRYPT
+} MegaAesCtrEncryptorDirection;
 
 struct _MegaAesCtrEncryptor
 {
@@ -49,6 +56,9 @@ G_BEGIN_DECLS
 GType                   mega_aes_ctr_encryptor_get_type (void) G_GNUC_CONST;
 
 MegaAesCtrEncryptor*    mega_aes_ctr_encryptor_new      (void);
+void                    mega_aes_ctr_encryptor_set_key  (MegaAesCtrEncryptor* aes_ctr_encryptor, MegaFileKey* key);
+void                    mega_aes_ctr_encryptor_set_position(MegaAesCtrEncryptor* aes_ctr_encryptor, guint64 position);
+void                    mega_aes_ctr_encryptor_set_mac  (MegaAesCtrEncryptor* aes_ctr_encryptor, MegaChunkedCbcMac* mac, MegaAesCtrEncryptorDirection dir);
 
 G_END_DECLS
 

@@ -18,6 +18,7 @@
  */
 
 #include "http.h"
+#include "config.h"
 #include <curl/curl.h>
 #include <string.h>
 
@@ -62,7 +63,7 @@ http* http_new(void)
 
   // set default headers
   http_set_referer(h, "https://mega.co.nz/");
-  http_set_user_agent(h, "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.17 (KHTML, like Gecko) Chrome/24.0.1312.70 Safari/537.17");
+  http_set_user_agent(h, "Megatools (" VERSION ")");
 
   return h;
 }

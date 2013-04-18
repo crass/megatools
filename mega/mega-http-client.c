@@ -37,6 +37,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include "config.h"
 #include "mega-http-client.h"
 #include "mega-http-io-stream.h"
 
@@ -1013,7 +1014,7 @@ static void mega_http_client_init(MegaHttpClient *http_client)
 
   // set default headers
   mega_http_client_set_header(http_client, "Referer", "https://mega.co.nz/");
-  mega_http_client_set_header(http_client, "User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.17 (KHTML, like Gecko) Chrome/24.0.1312.70 Safari/537.17");
+  mega_http_client_set_header(http_client, "User-Agent", "Megatools (" VERSION ")");
   mega_http_client_set_header(http_client, "Connection", "keep-alive");
 }
 

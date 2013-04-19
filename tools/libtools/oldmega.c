@@ -1437,54 +1437,51 @@ static const gchar* api_response_check(const gchar* response, gchar expects, gin
 }
 
 // }}}
-// {{{ api_call_prep
+// {{{ api_call
 
-static SJsonGen* api_call_prep(const gchar* a)
+static gchar* api_call(mega_session* s, gchar expects, gint* error_code, GError** err, const gchar* format, ...)
 {
-  SJsonGen* gen;
-
-  g_return_val_if_fail(a != NULL, NULL);
-
-  gen = s_json_gen_new();
-  s_json_gen_start_array(gen);
-  s_json_gen_start_object(gen);
-  s_json_gen_member_string(gen, "a", a);
-
-  return gen;
-}
-
-// }}}
-// {{{ api_call_do
-
-static gchar* api_call_do(SJsonGen* gen, mega_session* s, gchar expects, gint* error_code, GError** err)
-{
-  gchar *request, *response;
+  gchar *request, *response, *node_copy;
   const gchar* node;
+  va_list args;
 
-  g_return_val_if_fail(err != NULL, NULL); // this will leak the gen, but that's an invalid api call and should be fixed anyway
+  g_return_val_if_fail(err != NULL && *err == NULL, NULL);
+  g_return_val_if_fail(format != NULL, NULL);
 
-  s_json_gen_end_object(gen);
-  s_json_gen_end_array(gen);
-  request = s_json_gen_done(gen);
+  va_start(args, format);
+  request = s_json_buildv(format, args);
+  va_end(args);
 
-  gchar* method = s_json_get_member_string(s_json_get_element(request, 0), "a");
+  if (request == NULL)
+  {
+    g_set_error(err, MEGA_ERROR, MEGA_ERROR_OTHER, "Invalid request format: %s", format);
+    return NULL;
+  }
 
   response = api_request(s, request, err);
-  g_free(request);
 
   node = api_response_check(response, expects, error_code, err);
   if (*err)
   {
-    g_prefix_error(err, "API '%s' failed: ", method);
-    g_free(method);
-    g_free(response);
+    const gchar* method_node = s_json_path(request, "$[0].a!string");
 
+    if (method_node)
+    {
+      gchar* method = s_json_get_string(method_node);
+      g_prefix_error(err, "API call '%s' failed: ", method);
+      g_free(method);
+    }
+    else
+      g_prefix_error(err, "API call failed: ");
+
+    g_free(request);
+    g_free(response);
     return NULL;
   }
 
-  gchar* node_copy = s_json_get(node);
+  node_copy = s_json_get(node);
 
-  g_free(method);
+  g_free(request);
   g_free(response);
 
   return node_copy;
@@ -2103,11 +2100,7 @@ gboolean mega_session_open_exp_folder(mega_session* s, const gchar* n, const gch
     return FALSE;
 
   // login user
-  SJsonGen *gen = api_call_prep("f");
-  s_json_gen_member_int(gen, "c", 1);
-  s_json_gen_member_int(gen, "r", 1);
-  gchar* f_node = api_call_do(gen, s, 'o', NULL, &local_err);
-
+  gchar* f_node = api_call(s, 'o', NULL, &local_err, "[{a:f, c:1, r:1}]");
   if (!f_node)
   {
     g_propagate_error(err, local_err);
@@ -2188,16 +2181,11 @@ gboolean mega_session_open(mega_session* s, const gchar* un, const gchar* pw, co
 
   if (!is_loggedin)
   {
-    // login user
     gchar* un_lower = g_ascii_strdown(un, -1);
     gchar* uh = make_username_hash(un_lower, s->password_key);
-    SJsonGen *gen = api_call_prep("us");
-    s_json_gen_member_string(gen, "user", un_lower);
-    s_json_gen_member_string(gen, "uh", uh);
-    gchar* login_node = api_call_do(gen, s, 'o', NULL, &local_err);
-    g_free(uh);
-    g_free(un_lower);
 
+    // login user
+    gchar* login_node = api_call(s, 'o', NULL, &local_err, "[{a:us, user:%S, uh:%S}]", un_lower, uh);
     if (!login_node)
     {
       g_propagate_error(err, local_err);
@@ -2322,8 +2310,7 @@ gboolean mega_session_get_user(mega_session* s, GError** err)
   g_return_val_if_fail(err == NULL || *err == NULL, FALSE);
 
   // prepare request
-  SJsonGen *gen = api_call_prep("ug");
-  gchar* user_node = api_call_do(gen, s, 'o', NULL, &local_err);
+  gchar* user_node = api_call(s, 'o', NULL, &local_err, "[{a:ug}]");
   if (!user_node)
   {
     g_propagate_error(err, local_err);
@@ -2404,9 +2391,7 @@ gboolean mega_session_refresh(mega_session* s, GError** err)
   g_return_val_if_fail(err == NULL || *err == NULL, FALSE);
 
   // prepare request
-  SJsonGen *gen = api_call_prep("f");
-  s_json_gen_member_int(gen, "c", 1);
-  gchar* f_node = api_call_do(gen, s, 'o', NULL, &local_err);
+  gchar* f_node = api_call(s, 'o', NULL, &local_err, "[{a:f, c:1}]");
   if (!f_node)
   {
     g_propagate_error(err, local_err);
@@ -2623,11 +2608,7 @@ mega_user_quota* mega_session_user_quota(mega_session* s, GError** err)
   g_return_val_if_fail(err == NULL || *err == NULL, NULL);
 
   // prepare request
-  SJsonGen* gen = api_call_prep("uq");
-  s_json_gen_member_int(gen, "strg", 1);
-  s_json_gen_member_int(gen, "xfer", 1);
-  s_json_gen_member_int(gen, "pro", 1);
-  gchar* quota_node = api_call_do(gen, s, 'o', NULL, &local_err);
+  gchar* quota_node = api_call(s, 'o', NULL, &local_err, "[{a:ug, strg:1, xfer:1, pro:1}]");
   if (!quota_node)
   {
     g_propagate_error(err, local_err);
@@ -2750,7 +2731,6 @@ GSList* mega_session_get_node_chilren(mega_session* s, mega_node* node)
 
 mega_node* mega_session_mkdir(mega_session* s, const gchar* path, GError** err)
 {
-  SJsonGen *gen;
   GError* local_err = NULL;
   mega_node* n = NULL;
   gchar* mkdir_node = NULL;
@@ -2798,14 +2778,7 @@ mega_node* mega_session_mkdir(mega_session* s, const gchar* path, GError** err)
   if (p->type == MEGA_NODE_NETWORK)
   {
     // prepare contact add request
-    gchar* email = g_path_get_basename(path);
-    gen = api_call_prep("ur");
-    s_json_gen_member_string(gen, "u", email);
-    s_json_gen_member_int(gen, "l", 1);
-    s_json_gen_member_string(gen, "i", s->rid);
-    gchar* ur_node = api_call_do(gen, s, 'o', NULL, &local_err);
-    g_free(email);
-
+    gchar* ur_node = api_call(s, 'o', NULL, &local_err, "[{a:ur, u:%S, l:1, i:%s}]", g_path_get_basename(path), s->rid);
     if (!ur_node)
     {
       g_propagate_error(err, local_err);
@@ -2835,21 +2808,7 @@ mega_node* mega_session_mkdir(mega_session* s, const gchar* path, GError** err)
     g_free(node_key);
 
     // prepare request
-    gen = api_call_prep("p");
-    s_json_gen_member_string(gen, "t", p->handle);
-    s_json_gen_member_string(gen, "i", s->rid);
-    s_json_gen_member_array(gen, "n");
-      s_json_gen_start_object(gen);
-      s_json_gen_member_string(gen, "h", "xxxxxxxx");
-      s_json_gen_member_int(gen, "t", 1);
-      s_json_gen_member_string(gen, "k", dir_key);
-      s_json_gen_member_string(gen, "a", dir_attrs);
-      s_json_gen_end_object(gen);
-    s_json_gen_end_array(gen);
-    mkdir_node = api_call_do(gen, s, 'o', NULL, &local_err);
-    g_free(dir_attrs);
-    g_free(dir_key);
-
+    mkdir_node = api_call(s, 'o', NULL, &local_err, "[{a:p, t:%s, i:%s, n: [{h:xxxxxxxx, t:1, k:%S, a:%S}]}]", p->handle, s->rid, dir_key, dir_attrs);
     if (!mkdir_node)
     {
       g_propagate_error(err, local_err);
@@ -2896,7 +2855,6 @@ err:
 
 gboolean mega_session_rm(mega_session* s, const gchar* path, GError** err)
 {
-  SJsonGen *gen;
   GError* local_err = NULL;
 
   g_return_val_if_fail(s != NULL, FALSE);
@@ -2920,10 +2878,7 @@ gboolean mega_session_rm(mega_session* s, const gchar* path, GError** err)
   if (mn->type == MEGA_NODE_FILE || mn->type == MEGA_NODE_FOLDER)
   {
     // prepare request
-    gen = api_call_prep("d");
-    s_json_gen_member_string(gen, "i", s->rid);
-    s_json_gen_member_string(gen, "n", mn->handle);
-    gchar* rm_node = api_call_do(gen, s, 'i', NULL, &local_err);
+    gchar* rm_node = api_call(s, 'i', NULL, &local_err, "[{a:d, i:%s, n:%s}]", s->rid, mn->handle);
     if (!rm_node)
     {
       g_propagate_error(err, local_err);
@@ -2934,11 +2889,7 @@ gboolean mega_session_rm(mega_session* s, const gchar* path, GError** err)
   }
   else if (mn->type == MEGA_NODE_CONTACT)
   {
-    gen = api_call_prep("ur");
-    s_json_gen_member_string(gen, "u", mn->handle);
-    s_json_gen_member_int(gen, "l", 0);
-    s_json_gen_member_string(gen, "i", s->rid);
-    gchar* ur_node = api_call_do(gen, s, 'i', NULL, &local_err);
+    gchar* ur_node = api_call(s, 'i', NULL, &local_err, "[{a:ur, u:%s, l:0, i:%s}]", mn->handle, s->rid);
     if (!ur_node)
     {
       g_propagate_error(err, local_err);
@@ -2967,7 +2918,6 @@ gboolean mega_session_rm(mega_session* s, const gchar* path, GError** err)
 gchar* mega_session_new_node_attribute(mega_session* s, const guchar* data, gsize len, const gchar* type, const guchar* key, GError** err)
 {
   GError* local_err = NULL;
-  SJsonGen *gen;
   guchar* plain;
   AES_KEY k;
   guchar* cipher;
@@ -2981,10 +2931,7 @@ gchar* mega_session_new_node_attribute(mega_session* s, const guchar* data, gsiz
   g_return_val_if_fail(key != NULL, NULL);
   g_return_val_if_fail(err == NULL || *err == NULL, NULL);
 
-  gen = api_call_prep("ufa");
-  s_json_gen_member_int(gen, "s", len + pad);
-  s_json_gen_member_int(gen, "ssl", 0);
-  gchar* ufa_node = api_call_do(gen, s, 'o', NULL, &local_err);
+  gchar* ufa_node = api_call(s, 'o', NULL, &local_err, "[{a:ufa, s:%i, ssl:0}]", (gint64)len + pad);
   if (!ufa_node)
   {
     g_propagate_error(err, local_err);
@@ -3044,7 +2991,6 @@ static gchar* create_preview(mega_session* s, const gchar* local_path, const guc
   gchar* handle = NULL;
 #ifndef G_OS_WIN32
   GError* local_err = NULL;
-  SJsonGen *gen;
   gchar *tmp1 = NULL, *tmp2 = NULL, *prg;
 
   if (has_ffmpegthumbnailer < 0)
@@ -3206,7 +3152,6 @@ static gsize put_process_data(gpointer buffer, gsize size, struct _put_data* dat
 mega_node* mega_session_put(mega_session* s, const gchar* remote_path, const gchar* local_path, GError** err)
 {
   struct _put_data data;
-  SJsonGen *gen;
   GError* local_err = NULL;
   mega_node *node, *parent_node;
   gchar* file_name = NULL;
@@ -3313,13 +3258,7 @@ mega_node* mega_session_put(mega_session* s, const gchar* remote_path, const gch
   g_object_unref(info);
 
   // ask for upload url - [{"a":"u","ssl":0,"ms":0,"s":<SIZE>,"r":0,"e":0}]
-  gen = api_call_prep("u");
-  s_json_gen_member_int(gen, "ssl", 0);
-  s_json_gen_member_int(gen, "ms", 0);
-  s_json_gen_member_int(gen, "s", file_size);
-  s_json_gen_member_int(gen, "r", 0);
-  s_json_gen_member_int(gen, "e", 0);
-  gchar* up_node = api_call_do(gen, s, 'o', NULL, &local_err);
+  gchar* up_node = api_call(s, 'o', NULL, &local_err, "[{a:u, ssl:0, ms:0, s:%i, r:0, e:0}]", (gint64)file_size);
   if (!up_node)
   {
     g_propagate_error(err, local_err);
@@ -3382,23 +3321,7 @@ mega_node* mega_session_put(mega_session* s, const gchar* remote_path, const gch
   gchar* node_key_enc = b64_aes128_encrypt(node_key, 32, s->master_key);
 
   // prepare request
-  gen = api_call_prep("p");
-  s_json_gen_member_string(gen, "t", parent_node->handle);
-  s_json_gen_member_array(gen, "n");
-    s_json_gen_start_object(gen);
-      s_json_gen_member_string(gen, "h", up_handle->str);
-      s_json_gen_member_int(gen, "t", 0);
-      s_json_gen_member_string(gen, "k", node_key_enc);
-      s_json_gen_member_string(gen, "a", attrs_enc);
-      if (fa)
-        s_json_gen_member_string(gen, "fa", fa);
-    s_json_gen_end_object(gen);
-  s_json_gen_end_array(gen);
-  gchar* put_node = api_call_do(gen, s, 'o', NULL, &local_err);
-
-  g_free(attrs_enc);
-  g_free(node_key_enc);
-
+  gchar* put_node = api_call(s, 'o', NULL, &local_err, "[{a:p, t:%s, n:[{h:%s, t:0, k:%S, a:%S, fa:%s}]}]", parent_node->handle, up_handle->str, node_key_enc, attrs_enc, fa);
   if (!put_node)
   {
     g_propagate_error(err, local_err);
@@ -3573,11 +3496,7 @@ gboolean mega_session_get(mega_session* s, const gchar* local_path, const gchar*
   chunked_cbc_mac_init8(&data.mac, aes_key, data.iv);
 
   // prepare request
-  SJsonGen* gen = api_call_prep("g");
-  s_json_gen_member_int(gen, "g", 1);
-  s_json_gen_member_int(gen, "ssl", 0);
-  s_json_gen_member_string(gen, "n", n->handle);
-  gchar* get_node = api_call_do(gen, s, 'o', NULL, &local_err);
+  gchar* get_node = api_call(s, 'o', NULL, &local_err, "[{a:g, g:1, ssl:0, n:%s}]", n->handle);
 
   if (!get_node)
   {
@@ -3746,11 +3665,7 @@ gboolean mega_session_dl(mega_session* s, const gchar* handle, const gchar* key,
   }
 
   // prepare request
-  SJsonGen* gen = api_call_prep("g");
-  s_json_gen_member_int(gen, "g", 1);
-  s_json_gen_member_int(gen, "ssl", 0);
-  s_json_gen_member_string(gen, "p", handle);
-  gchar* dl_node = api_call_do(gen, s, 'o', NULL, &local_err);
+  gchar* dl_node = api_call(s, 'o', NULL, &local_err, "[{a:g, g:1, ssl:0, p:%s}]", handle);
   if (!dl_node)
   {
     g_propagate_error(err, local_err);
@@ -4225,7 +4140,6 @@ err:
 gboolean mega_session_register(mega_session* s, const gchar* email, const gchar* password, const gchar* name, mega_reg_state** state, GError** err)
 {
   GError* local_err = NULL;
-  SJsonGen* gen;
   gchar* node;
   gboolean status = FALSE;
 
@@ -4257,14 +4171,7 @@ gboolean mega_session_register(mega_session* s, const gchar* email, const gchar*
   g_free(ssc);
 
   // create anon user - [{"a":"up","k":"cHl8JeeSqgBOiURQL_Dvug","ts":"W9fg4kOw8p44KWoWICbgEd3rfMovr5HoSjI1vN7845s"}] -> ["-a1DHeWfguY"]
-  gchar* b64_ts = base64urlencode(ts_data, 32);
-  gchar* b64_k = b64_aes128_encrypt(master_key, 16, password_key);
-  gen = api_call_prep("up");
-  s_json_gen_member_string(gen, "k", b64_k);
-  s_json_gen_member_string(gen, "ts", b64_ts);
-  node = api_call_do(gen, s, 's', NULL, &local_err);
-  g_free(b64_ts);
-  g_free(b64_k);
+  node = api_call(s, 's', NULL, &local_err, "[{a:up, k:%S, ts:%S}]", b64_aes128_encrypt(master_key, 16, password_key), base64urlencode(ts_data, 32));
   if (!node)
   {
     g_propagate_error(err, local_err);
@@ -4275,9 +4182,7 @@ gboolean mega_session_register(mega_session* s, const gchar* email, const gchar*
   g_free(node);
 
   // login as an anon user - [{"a":"us","user":"-a1DHeWfguY"}] -> [{"tsid":"W9fg4kOw8p44KWoWICbgES1hMURIZVdmZ3VZ3et8yi-vkehKMjW83vzjmw","k":"cHl8JeeSqgBOiURQL_Dvug"}]
-  gen = api_call_prep("us");
-  s_json_gen_member_string(gen, "user", user_handle);
-  node = api_call_do(gen, s, 'o', NULL, &local_err);
+  node = api_call(s, 'o', NULL, &local_err, "[{a:us, user:%s}]", user_handle);
   if (!node)
   {
     g_propagate_error(err, local_err);
@@ -4289,8 +4194,7 @@ gboolean mega_session_register(mega_session* s, const gchar* email, const gchar*
   g_free(node);
 
   // get user info - [{"a":"ug"}] -> [{"u":"-a1DHeWfguY","s":1,"n":0,"k":"cHl8JeeSqgBOiURQL_Dvug","c":0,"ts":"W9fg4kOw8p44KWoWICbgEd3rfMovr5HoSjI1vN7845s"}]
-  gen = api_call_prep("ug");
-  node = api_call_do(gen, s, 'o', NULL, &local_err);
+  node = api_call(s, 'o', NULL, &local_err, "[{a:ug}]");
   if (!node)
   {
     g_propagate_error(err, local_err);
@@ -4300,9 +4204,7 @@ gboolean mega_session_register(mega_session* s, const gchar* email, const gchar*
   g_free(node);
 
   // set user name - [{"a":"up","name":"Bob Brown"}] -> ["-a1DHeWfguY"]
-  gen = api_call_prep("up");
-  s_json_gen_member_string(gen, "name", name);
-  node = api_call_do(gen, s, 's', NULL, &local_err);
+  node = api_call(s, 's', NULL, &local_err, "[{a:up, name:%s}]", name);
   if (!node)
   {
     g_propagate_error(err, local_err);
@@ -4312,26 +4214,13 @@ gboolean mega_session_register(mega_session* s, const gchar* email, const gchar*
   g_free(node);
 
   // request signup link - [{"a":"uc","c":"ZOB7VJrNXFvCzyZBIcdWhr5l4dJatrWpEjEpAmH17ic","n":"Qm9iIEJyb3du","m":"bWVnb3VzQGVtYWlsLmN6"}] -> [0]
-  gchar* b64_name = base64urlencode(name, strlen(name));
-  gchar* b64_email = base64urlencode(email, strlen(email));
-
   guchar c_data[32] = {0}; // aes(master_key, pw_key) + aes(verify, pw_key)
   memcpy(c_data, master_key, 16);
   RAND_bytes(c_data + 16, 4);
   RAND_bytes(c_data + 16 + 12, 4);
-  gchar* b64_c = b64_aes128_encrypt(c_data, 32, password_key);
 
   // this will set new k from the first 16 bytes of c
-  gen = api_call_prep("uc");
-  s_json_gen_member_string(gen, "c", b64_c);
-  s_json_gen_member_string(gen, "n", b64_name);
-  s_json_gen_member_string(gen, "m", b64_email);
-  node = api_call_do(gen, s, 'i', NULL, &local_err);
-
-  g_free(b64_c);
-  g_free(b64_name);
-  g_free(b64_email);
-
+  node = api_call(s, 'i', NULL, &local_err, "[{a:uc, c:%S, n:%S, m:%S}]", b64_aes128_encrypt(c_data, 32, password_key), base64urlencode(name, strlen(name)), base64urlencode(email, strlen(email)));
   if (!node)
   {
     g_propagate_error(err, local_err);
@@ -4367,7 +4256,6 @@ gboolean mega_session_register_verify(mega_session* s, mega_reg_state* state, co
 {
   GError* local_err = NULL;
   gboolean status = FALSE;
-  SJsonGen* gen;
   gchar* node;
 
   g_return_val_if_fail(s != NULL, FALSE);
@@ -4394,9 +4282,7 @@ gboolean mega_session_register_verify(mega_session* s, mega_reg_state* state, co
   //   3: full account
 
   // login as an anon user - [{"a":"us","user":"-a1DHeWfguY"}] -> [{"tsid":"W9fg4kOw8p44KWoWICbgES1hMURIZVdmZ3VZ3et8yi-vkehKMjW83vzjmw","k":"cHl8JeeSqgBOiURQL_Dvug"}]
-  gen = api_call_prep("us");
-  s_json_gen_member_string(gen, "user", state->user_handle);
-  node = api_call_do(gen, s, 'o', NULL, &local_err);
+  node = api_call(s, 'o', NULL, &local_err, "[{a:us, user:%s}]", state->user_handle);
   if (!node)
   {
     g_propagate_error(err, local_err);
@@ -4417,9 +4303,7 @@ gboolean mega_session_register_verify(mega_session* s, mega_reg_state* state, co
   //            ^                       ^            ^                    ^                       ^
   //          email                    name        handle       enc(master_key, pwkey)   enc(challenge, pwkey)
 
-  gen = api_call_prep("ud");
-  s_json_gen_member_string(gen, "c", signup_key);
-  node = api_call_do(gen, s, 'a', NULL, &local_err);
+  node = api_call(s, 'a', NULL, &local_err, "[{a:ud, c:%s}]", signup_key);
   if (!node)
   {
     g_propagate_error(err, local_err);
@@ -4475,10 +4359,7 @@ gboolean mega_session_register_verify(mega_session* s, mega_reg_state* state, co
 
   // save uh and c
   // [{"uh":"VcWbhpU9cb0","c":"ZOB7VJrNXFvCzyZBIcdWhr5l4dJatrWpEjEpAmH17ieRRWFjWAUAtSqaVQ_TQKltZWdvdXNAZW1haWwuY3oJQm9iIEJyb3duMhVh8n67rBg","a":"up"}] -> ["-a1DHeWfguY"]
-  gen = api_call_prep("up");
-  s_json_gen_member_string(gen, "c", signup_key);
-  s_json_gen_member_string(gen, "uh", uh);
-  node = api_call_do(gen, s, 's', NULL, &local_err);
+  node = api_call(s, 's', NULL, &local_err, "[{a:up, c:%s, uh:%s}]", signup_key, uh);
   if (!node)
   {
     g_propagate_error(err, local_err);
@@ -4490,10 +4371,7 @@ gboolean mega_session_register_verify(mega_session* s, mega_reg_state* state, co
   // relogin using email + uh
   // [{"a":"us","user":"megous@email.cz","uh":"VcWbhpU9cb0"}] -> [{"tsid":"W9fg4kOw8p44KWoWICbgES1hMURIZVdmZ3VZ3et8yi-vkehKMjW83vzjmw","k":"ZOB7VJrNXFvCzyZBIcdWhg"}]
   
-  gen = api_call_prep("us");
-  s_json_gen_member_string(gen, "user", email_lower);
-  s_json_gen_member_string(gen, "uh", uh);
-  node = api_call_do(gen, s, 'o', NULL, &local_err);
+  node = api_call(s, 'o', NULL, &local_err, "[{a:us, user:%s, uh:%s}]", email_lower, uh);
   if (!node)
   {
     g_propagate_error(err, local_err);
@@ -4507,18 +4385,7 @@ gboolean mega_session_register_verify(mega_session* s, mega_reg_state* state, co
 
   // set RSA key pair
   // [{"a":"up", "privk":"...", "pubk":"..."}] -> ["-a1DHeWfguY"]
-
-  gchar* b64_pubk = b64_encode_pubk(&key);
-  gchar* b64_privk = b64_aes128_encrypt_privk(master_key, &key);
-  
-  gen = api_call_prep("up");
-  s_json_gen_member_string(gen, "pubk", b64_pubk);
-  s_json_gen_member_string(gen, "privk", b64_privk);
-  node = api_call_do(gen, s, 's', NULL, &local_err);
-
-  g_free(b64_pubk);
-  g_free(b64_privk);
-
+  node = api_call(s, 's', NULL, &local_err, "[{a:up, pubk:%S, privk:%S}]", b64_encode_pubk(&key), b64_aes128_encrypt_privk(master_key, &key));
   if (!node)
   {
     g_propagate_error(err, local_err);

@@ -252,7 +252,7 @@ void mega_aes_key_load_binary(MegaAesKey* aes_key, const guchar* data)
 /**
  * mega_aes_key_load_ubase64:
  * @aes_key: a #MegaAesKey
- * @data: (element-type guint8) (array fixed-size=16): 16 byte AES key buffer
+ * @data: UBase64 encoded 16 byte AES key data
  *
  * Initialize key from #data.
  *

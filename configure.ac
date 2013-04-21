@@ -24,33 +24,51 @@ AC_HEADER_STDC
 LIB_MEGA_VERSION=0:0:0
 AC_SUBST(LIB_MEGA_VERSION)
 
-GLIB_REQUIRED=2.32.0
-AM_PATH_GLIB_2_0($GLIB_REQUIRED,,,gobject gio)
-if test "$GLIB_LIBS" = ""; then
-   AC_MSG_ERROR(GLIB $GLIB_REQUIRED or later is required to build libmega)
-fi
-GLIB_CFLAGS="$GLIB_CFLAGS"
+# Define requirements
 
-MEGA_REQUIRES="gio-2.0 >= 2.32.0 libcurl openssl"
+GLIB_VERSION="2.32.0"
+GOBJECT_INTROSPECTION_VERSION="1.30"
+NETTLE_REQUIRES="nettle >= 2.5 hogweed >= 2.5"
+OPENSSL_REQUIRES="openssl"
+CURL_REQUIRES="libcurl"
 FUSE_REQUIRES="fuse"
+MEGA_REQUIRES="gio-2.0 >= $GLIB_VERSION $NETTLE_REQUIRES"
 
-GOBJECT_INTROSPECTION_CHECK([1.30])
-
-PKG_CHECK_MODULES(MEGA, [$MEGA_REQUIRES])
+# for libmega.pc
 AC_SUBST(MEGA_REQUIRES)
-AC_SUBST(MEGA_CFLAGS)
-AC_SUBST(MEGA_LIBS)
 
-PKG_CHECK_MODULES(FUSE, [$FUSE_REQUIRES], [ENABLE_FUSE=yes], [ENABLE_FUSE=no])
-AC_SUBST(FUSE_CFLAGS)
-AC_SUBST(FUSE_LIBS)
-AM_CONDITIONAL([ENABLE_FUSE], [test x$ENABLE_FUSE = xyes])
-
+# check for glib/gio
+AM_PATH_GLIB_2_0([$GLIB_VERSION],,AC_MSG_ERROR([Glib $GLIB_VERSION or later is required to build megatools]),[gobject gio])
 GLIB_MAKEFILE='$(top_srcdir)/Makefile.glib'
 AC_SUBST(GLIB_MAKEFILE)
 
-PKG_CHECK_MODULES(GLIBTESTS, [glib-2.0 >= 2.34.0], [ENABLE_TESTS=yes], [ENABLE_TESTS=no])
-AM_CONDITIONAL([ENABLE_TESTS], [test x$ENABLE_TESTS = xyes])
+# check gobject-introspection
+GOBJECT_INTROSPECTION_CHECK([$GOBJECT_INTROSPECTION_VERSION])
+
+# check nettle
+PKG_CHECK_MODULES(NETTLE, [$NETTLE_REQUIRES])
+AC_SUBST(NETTLE_CFLAGS)
+AC_SUBST(NETTLE_LIBS)
+
+# check openssl
+PKG_CHECK_MODULES(OPENSSL, [$OPENSSL_REQUIRES])
+AC_SUBST(OPENSSL_CFLAGS)
+AC_SUBST(OPENSSL_LIBS)
+
+# check curl
+PKG_CHECK_MODULES(CURL, [$CURL_REQUIRES])
+AC_SUBST(CURL_CFLAGS)
+AC_SUBST(CURL_LIBS)
+
+# check fuse
+PKG_CHECK_MODULES(FUSE, [$FUSE_REQUIRES], [enable_fuse=yes], [enable_fuse=no])
+AM_CONDITIONAL([ENABLE_FUSE], [test x$enable_fuse = xyes])
+AC_SUBST(FUSE_CFLAGS)
+AC_SUBST(FUSE_LIBS)
+
+# check if we can build tests
+PKG_CHECK_MODULES(GLIBTESTS, [glib-2.0 >= 2.34.0], [enable_tests=yes], [enable_tests=no])
+AM_CONDITIONAL([ENABLE_TESTS], [test x$enable_tests = xyes])
 
 # enable dev compiler warnings
 AC_ARG_ENABLE([warnings], AC_HELP_STRING([--enable-warnings], [Build with compiler warnings enabled.]))
@@ -86,8 +104,8 @@ Configured features:
 
   docs build: $enable_docs_build
   warnings: $enable_warnings
-  megafs: $ENABLE_FUSE (requires fuse)
-  tests: $ENABLE_TESTS (requires glib-2.0 >= 2.34.0)
+  megafs: $enable_fuse (requires fuse)
+  tests: $enable_tests (requires glib-2.0 >= 2.34.0)
 
 Run make now.
 

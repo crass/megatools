@@ -1,5 +1,7 @@
 AM_CFLAGS = \
-  $(MEGA_CFLAGS) \
+  $(GLIB_CFLAGS) \
+  $(OPENSSL_CFLAGS) \
+  $(CURL_CFLAGS) \
   -I$(srcdir)/libtools \
   -I$(top_srcdir)
 
@@ -16,8 +18,10 @@ libtools_la_SOURCES = \
   libtools/tools.h
 
 LDADD = \
-  $(MEGA_LIBS) \
   libtools.la \
+  $(GLIB_LIBS) \
+  $(OPENSSL_LIBS) \
+  $(CURL_LIBS) \
   $(top_builddir)/mega/libmega.la
 
 megafs_LDADD = \

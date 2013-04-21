@@ -1,10 +1,10 @@
 AM_CFLAGS = \
   -DG_LOG_DOMAIN=\"Mega\" \
-  $(MEGA_CFLAGS) \
+  $(GLIB_CFLAGS) \
   -I$(top_srcdir)
 
 LDADD = \
-  $(MEGA_LIBS) \
+  $(GLIB_LIBS) \
   $(top_builddir)/mega/libmega.la
 
 if ENABLE_TESTS

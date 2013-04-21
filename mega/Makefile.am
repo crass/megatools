@@ -2,7 +2,8 @@ SUBDIRS = gjs
 
 AM_CFLAGS = \
   -DG_LOG_DOMAIN=\"Mega\" \
-  $(MEGA_CFLAGS) \
+  $(GLIB_CFLAGS) \
+  $(NETTLE_CFLAGS) \
   -I$(top_srcdir) \
   -I$(srcdir)
 
@@ -10,7 +11,8 @@ lib_LTLIBRARIES = \
   libmega.la
 
 libmega_la_LIBADD = \
-  $(MEGA_LIBS)
+  $(GLIB_LIBS) \
+  $(NETTLE_LIBS)
 
 libmega_la_LDFLAGS = -version-info $(LIB_MEGA_VERSION) -no-undefined
 

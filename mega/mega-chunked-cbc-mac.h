@@ -54,10 +54,6 @@ void                    mega_chunked_cbc_mac_setup      (MegaChunkedCbcMac* mac,
 void                    mega_chunked_cbc_mac_update     (MegaChunkedCbcMac* mac, const guchar* data, gsize len);
 void                    mega_chunked_cbc_mac_finish     (MegaChunkedCbcMac* mac, guchar* meta_mac);
 
-// helper methods (take 8 byte IV/ return 8 byte MAC)
-void                    mega_chunked_cbc_mac_setup8     (MegaChunkedCbcMac* mac, MegaAesKey* key, guchar* iv);
-void                    mega_chunked_cbc_mac_finish8    (MegaChunkedCbcMac* mac, guchar* meta_mac);
-
 G_END_DECLS
 
 #endif

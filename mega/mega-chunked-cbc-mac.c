@@ -40,6 +40,7 @@ struct _MegaChunkedCbcMacPrivate
   guchar chunk_mac_iv[16];
   guchar chunk_mac[16];
   guchar meta_mac[16];
+  gboolean finished;
 };
 
 // {{{ GObject property and signal enums
@@ -121,6 +122,11 @@ void mega_chunked_cbc_mac_setup(MegaChunkedCbcMac* mac, MegaAesKey* key, guchar*
   g_return_if_fail(iv != NULL);
 
   priv = mac->priv;
+
+  if (priv->key)
+    g_object_unref(priv->key);
+
+  priv = mac->priv;
   priv->key = g_object_ref(key);
   priv->chunk_idx = 0;
   priv->next_boundary = get_chunk_size(priv->chunk_idx);
@@ -128,27 +134,6 @@ void mega_chunked_cbc_mac_setup(MegaChunkedCbcMac* mac, MegaAesKey* key, guchar*
   memcpy(priv->chunk_mac_iv, iv, 16);
   memcpy(priv->chunk_mac, iv, 16);
   memset(priv->meta_mac, 0, 16);
-}
-
-/**
- * mega_chunked_cbc_mac_setup8:
- * @mac: a #MegaChunkedCbcMac
- * @key: 
- * @iv: 
- *
- * Description...
- */
-void mega_chunked_cbc_mac_setup8(MegaChunkedCbcMac* mac, MegaAesKey* key, guchar* iv)
-{
-  g_return_if_fail(MEGA_IS_CHUNKED_CBC_MAC(mac));
-  g_return_if_fail(key != NULL);
-  g_return_if_fail(iv != NULL);
-
-  guchar mac_iv[16];
-  memcpy(mac_iv, iv, 8);
-  memcpy(mac_iv + 8, iv, 8);
-
-  mega_chunked_cbc_mac_setup(mac, key, mac_iv);
 }
 
 /**
@@ -165,6 +150,7 @@ void mega_chunked_cbc_mac_update(MegaChunkedCbcMac* mac, const guchar* data, gsi
   gsize i;
 
   g_return_if_fail(MEGA_IS_CHUNKED_CBC_MAC(mac));
+  g_return_if_fail(!mac->priv->finished);
   g_return_if_fail(data != NULL);
 
   priv = mac->priv;
@@ -203,6 +189,14 @@ void mega_chunked_cbc_mac_finish(MegaChunkedCbcMac* mac, guchar* meta_mac)
 
   priv = mac->priv;
 
+  if (priv->finished)
+  {
+    memcpy(meta_mac, priv->meta_mac, 16);
+    return;
+  }
+
+  priv->finished = TRUE;
+
   // finish buffer if necessary
   if (priv->position % 16)
   {
@@ -221,35 +215,7 @@ void mega_chunked_cbc_mac_finish(MegaChunkedCbcMac* mac, guchar* meta_mac)
   if (priv->position > (priv->next_boundary - get_chunk_size(priv->chunk_idx)))
     close_chunk(priv);
 
-  if (meta_mac)
-    memcpy(meta_mac, priv->meta_mac, 16);
-
-  // cleanup
-  g_object_unref(priv->key);
-  memset(priv, 0, sizeof(*priv));
-}
-
-/**
- * mega_chunked_cbc_mac_finish8:
- * @mac: a #MegaChunkedCbcMac
- * @meta_mac: 
- *
- * Description...
- */
-void mega_chunked_cbc_mac_finish8(MegaChunkedCbcMac* mac, guchar* meta_mac)
-{
-  guchar buf[16];
-  gint i;
-
-  g_return_if_fail(MEGA_IS_CHUNKED_CBC_MAC(mac));
-  g_return_if_fail(meta_mac != NULL);
-
-  mega_chunked_cbc_mac_finish(mac, buf);
-
-  for (i = 0; i < 4; i++)
-    meta_mac[i] = buf[i] ^ buf[i + 4];
-  for (i = 0; i < 4; i++)
-    meta_mac[i + 4] = buf[i + 8] ^ buf[i + 12];
+  memcpy(meta_mac, priv->meta_mac, 16);
 }
 
 // {{{ GObject type setup
@@ -285,17 +251,22 @@ static void mega_chunked_cbc_mac_init(MegaChunkedCbcMac *mac)
 
 static void mega_chunked_cbc_mac_dispose(GObject *object)
 {
-  //MegaChunkedCbcMac *mac = MEGA_CHUNKED_CBC_MAC(object);
+  G_GNUC_UNUSED MegaChunkedCbcMac *mac = MEGA_CHUNKED_CBC_MAC(object);
+
   //
   // Free everything that may hold reference to MegaChunkedCbcMac
   //
+
   G_OBJECT_CLASS(mega_chunked_cbc_mac_parent_class)->dispose(object);
 }
 
 static void mega_chunked_cbc_mac_finalize(GObject *object)
 {
-  //MegaChunkedCbcMac *mac = MEGA_CHUNKED_CBC_MAC(object);
-  //
+  MegaChunkedCbcMac *mac = MEGA_CHUNKED_CBC_MAC(object);
+  
+  if (mac->priv->key)
+    g_object_unref(mac->priv->key);
+
   G_OBJECT_CLASS(mega_chunked_cbc_mac_parent_class)->finalize(object);
 }
 

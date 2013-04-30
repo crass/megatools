@@ -2,14 +2,13 @@ AM_CFLAGS = \
   $(GLIB_CFLAGS) \
   $(OPENSSL_CFLAGS) \
   $(CURL_CFLAGS) \
+  -I$(top_srcdir)/sjson \
   -I$(srcdir)/libtools \
   -I$(top_srcdir)
 
 noinst_LTLIBRARIES = libtools.la
 
 libtools_la_SOURCES = \
-  libtools/sjson.gen.c \
-  libtools/sjson.h \
   libtools/http.c \
   libtools/http.h \
   libtools/oldmega.c \

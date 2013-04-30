@@ -89,6 +89,7 @@ AS_IF([test "x$enable_docs_build" = "xyes"], [], [enable_docs_build=no])
 AC_CONFIG_FILES([
   Makefile
   libmega.pc
+  sjson/Makefile
   mega/Makefile
   mega/gjs/Makefile
   tools/Makefile

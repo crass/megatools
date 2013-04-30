@@ -4,6 +4,7 @@ AM_CFLAGS = \
   -DG_LOG_DOMAIN=\"Mega\" \
   $(GLIB_CFLAGS) \
   $(NETTLE_CFLAGS) \
+  -I$(top_srcdir)/sjson \
   -I$(top_srcdir) \
   -I$(srcdir)
 
@@ -11,6 +12,7 @@ lib_LTLIBRARIES = \
   libmega.la
 
 libmega_la_LIBADD = \
+  $(top_builddir)/sjson/libsjson.la \
   $(GLIB_LIBS) \
   $(NETTLE_LIBS)
 

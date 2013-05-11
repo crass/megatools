@@ -90,8 +90,9 @@ gchar*                  mega_aes_key_encrypt            (MegaAesKey* aes_key, co
 GBytes*                 mega_aes_key_decrypt            (MegaAesKey* aes_key, const gchar* cipher);
 
 gchar*                  mega_aes_key_encrypt_cbc        (MegaAesKey* aes_key, const guchar* plain, gsize len);
-gchar*                  mega_aes_key_encrypt_string_cbc (MegaAesKey* aes_key, const gchar* str);
 GBytes*                 mega_aes_key_decrypt_cbc        (MegaAesKey* aes_key, const gchar* cipher);
+gchar*                  mega_aes_key_encrypt_string_cbc (MegaAesKey* aes_key, const gchar* str);
+gchar*                  mega_aes_key_decrypt_string_cbc (MegaAesKey* aes_key, const gchar* cipher);
 
 void                    mega_aes_key_encrypt_cbc_raw    (MegaAesKey* aes_key, const guchar* plain, guchar* cipher, gsize len);
 void                    mega_aes_key_decrypt_cbc_raw    (MegaAesKey* aes_key, const guchar* cipher, guchar* plain, gsize len);

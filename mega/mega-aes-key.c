@@ -656,6 +656,30 @@ gchar* mega_aes_key_encrypt_string_cbc(MegaAesKey* aes_key, const gchar* str)
 }
 
 /**
+ * mega_aes_key_decrypt_string_cbc:
+ * @aes_key: a #MegaAesKey
+ * @cipher: UBase64 encoded ciphertext.
+ *
+ * Decrypt UBase64 encoded ciphertext blocks using AES key in CBC mode with zero IV.
+ *
+ * Returns: Zero terminated string.
+ */
+gchar* mega_aes_key_decrypt_string_cbc(MegaAesKey* aes_key, const gchar* cipher)
+{
+  gsize size;
+  GBytes* bytes;
+
+  g_return_val_if_fail(MEGA_IS_AES_KEY(aes_key), NULL);
+  g_return_val_if_fail(cipher != NULL, NULL);
+
+  bytes = mega_aes_key_decrypt_cbc(aes_key, cipher);
+  if (!bytes)
+    return NULL;
+
+  return g_bytes_unref_to_data(bytes, &size);
+}
+
+/**
  * mega_aes_key_encrypt_ctr:
  * @aes_key: a #MegaAesKey
  * @nonce: (element-type guint8) (array fixed-size=8) (transfer none): 8-byte nonce buffer

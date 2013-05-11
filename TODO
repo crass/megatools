@@ -1,50 +1,82 @@
+Priorities:
+- port tools to new high-level api
+- streaming download/upload using the new API
+- sample gui using the high-level API
+- megafs file reading/download
+
+Bugs/issues to solve for the next release:
+- ephemeral account creation/login
+- thumbnails (allow to disable them via config option)
+- pdf thumbnails taking too much space (renders each page)
+- respect system proxy settings
+- resume download in megadl and megaget
+- expand readme
+  - compilation on old system
+  - how to launch from console
+  - dconf / dbus-launch info in man pages
+
+
+Misc
+====
+
+- annotate/document: MegaHttpClient, MegaChunkedCbcMac, MegaAesCtrEncryptor,
+  MegaHttpInputStream
+
+- unit tests for mega-aes-ctr encryptor
+- split chunked cbc-mac calculation (chunk + meta-mac)
+
+- progress reporting
+- chunked upload/download
+- batched puts for multi-file upload
+  - changelist based sync
+
+(user visible feature for the release)
+- fuse file reading using new dl api
+  - check threads are used correctly in megafs
+
+
 libmega
 =======
 
-- port to nettle/gmp, drop openssl dependency
+- MegaApi
+  - cancellable API calls
+  - async API (mostly for use in gjs)
 
-- file data crypto
-  - cbc mac calculation (chunked) object (shared by multiple convertors, if dling
-    in parallel?)
-  - cbc mac chunked validation
-  - how to do partial file downloads?
-  - how to potentially do partial uploads?
-  - calculating cbc-mac for chunks (streaming operation)
-  - calculating meta mac
+- MegaSession
+  - save/load
+  - open/login/logout/close
+  - create (ephemeral)
+  - create (full)
+  - user account info
 
-- MegaFileKey
-  - verifying meta-mac against the key  
-  - packing meta-mac info into a key
+- MegaNode
+- MegaFileUploader
+- MegaFileDownloader
 
+- better randomness on linux (see serious users of nettle api for examples)
 
 mega-gjs
 ========
 
-- prototype higher level libmega API in javascript
-
-- Mega.API
-  - Make use of AES-CTR/CBC-MAC stream converter
-  - Determine use cases for decryption convertors
-  - Packing multiple calls into single request/response (batching)
-  - Running operations in parallel (async)
-
-- Mega.Session
-  - Load filesystem info
-
-- improve JS error reporting HTTP error handling
+- Try running download/upload operations in parallel (async)
+- alter file attributes in mega.js (thumbnails, etc.)
+- Implement sample gui in gjs (Mega.co.nz video player?)
+  - for js api testing
+- show samples of js api on the website
 
 
 tools
 =====
 
-- gradually port to new libmega API
-- get rid of libcurl dependency
-  - depends on new file crypto in libmega
+- port ul/dl to new libmega API (on the tools-port branch)
+
+- use gnome password manager / some other password manager agent
 
 - megasync
   - control conflict resolution
   - delete locally removed files from the cloud
   - show summary/stats after sync
+  - --watch option
 
 - megashare
   - create shares on folders (and set permissions)
@@ -53,7 +85,3 @@ tools
 - megamv /Path1 /Path2 ... /TgtPath
 
 - megacp /Path1 /Path2 ... /TgtPath
-
-- megafs
-  - read-only access (use partial downloads functionality)
-  - possibly do some smart caching

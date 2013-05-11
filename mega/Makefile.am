@@ -37,6 +37,16 @@ libmega_la_SOURCES = \
   mega-http-output-stream.h \
   mega-aes-ctr-encryptor.c \
   mega-aes-ctr-encryptor.h \
+  mega-api.c \
+  mega-api.h \
+  mega-session.c \
+  mega-session.h \
+  mega-node.c \
+  mega-node.h \
+  mega-file-uploader.c \
+  mega-file-uploader.h \
+  mega-file-downloader.c \
+  mega-file-downloader.h \
   utils.c \
   utils.h \
   megatypes.h \

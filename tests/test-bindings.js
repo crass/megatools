@@ -20,10 +20,25 @@
 const Gio = imports.gi.Gio;
 const GLib = imports.gi.GLib;
 const Mega = imports.gi.Mega;
+const ByteArray = imports.byteArray;
 const Mainloop = imports.mainloop;
 const Lang = imports.lang;
 
 function hex(v) {
+	if (typeof v == 'string') {
+		v = ByteArray.fromString(v);
+	} else if (typeof v == 'object') {
+		if (v instanceof Array) {
+			v = ByteArray.fromArray(v);
+		} else if (v instanceof GLib.Bytes) {
+			v = ByteArray.fromGBytes(v);
+		} else if (v instanceof ByteArray.ByteArray) {
+			v = v;
+		} else {
+			throw new Error("Can't call hex on this data type");
+		}
+	}
+
 	return Mega.format_hex(v, Mega.HexFormat.PACKED);
 }
 
@@ -45,7 +60,7 @@ function run(test) {
 	try {
 		test();
 	} catch (ex) {
-		print("FAIL: " + ex.message);
+		print("FAIL[" + ex.fileName + ":" + ex.lineNumber + "]: " + ex.message);
 	}
 }
 
@@ -73,29 +88,29 @@ function test_aes() {
 	var PASSWORD_KEY = "b-9n_tUR0KApHfV6HmLcvg";
 	var PASSWORD_HEX = "6FEF67FED511D0A0291DF57A1E62DCBE";
 
-	var pkey = new Mega.AesKey.new_from_password("qwe");
-	var mkey = new Mega.AesKey.new_generated();
+	var pkey = Mega.AesKey.new_from_password("qwe");
+	var mkey = Mega.AesKey.new_generated();
 
 	assert_eq_bytes("pkey get_ubase64 eq get_binary", Mega.base64urldecode(pkey.get_ubase64()), pkey.get_binary());
 	assert_eq_bytes("pkey get_enc_ubase64 eq get_enc_binary", Mega.base64urldecode(pkey.get_enc_ubase64(mkey)), pkey.get_enc_binary(mkey));
 
-	var pkey2 = new Mega.AesKey.new_from_enc_ubase64(pkey.get_enc_ubase64(mkey), mkey);
+	var pkey2 = Mega.AesKey.new_from_enc_ubase64(pkey.get_enc_ubase64(mkey), mkey);
 	assert_eq_bytes("pkey == pkey2", pkey.get_binary(), pkey2.get_binary());
 
-	var pkey3 = new Mega.AesKey.new_from_ubase64(pkey.get_ubase64());
+	var pkey3 = Mega.AesKey.new_from_ubase64(pkey.get_ubase64());
 	assert_eq_bytes("pkey == pkey3", pkey.get_binary(), pkey3.get_binary());
 
-	var pkey4 = new Mega.AesKey.new_from_enc_binary(pkey.get_enc_binary(mkey), mkey);
+	var pkey4 = Mega.AesKey.new_from_enc_binary(pkey.get_enc_binary(mkey), mkey);
 	assert_eq_bytes("pkey == pkey4", pkey.get_binary(), pkey4.get_binary());
 
-	var pkey5 = new Mega.AesKey.new_from_binary(pkey.get_binary());
+	var pkey5 = Mega.AesKey.new_from_binary(pkey.get_binary());
 	assert_eq_bytes("pkey == pkey5", pkey.get_binary(), pkey5.get_binary());
 
 	// encrypt/decrypt
 	var DATA = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
 	var CIPHER = pkey.encrypt(DATA);
 	var CIPHER_SHOULD_BE = "dUDHWjxmWDbmtW5DBL1UMHVAx1o8Zlg25rVuQwS9VDA";
-	var DATA_DEC = Mega.gbytes_to_string(pkey.decrypt(CIPHER));
+	var DATA_DEC = pkey.decrypt(CIPHER);
 
 	assert_eq_bytes("enc/dec data", DATA, DATA_DEC);
 	assert_eq("enc cipher", CIPHER, CIPHER_SHOULD_BE);
@@ -104,14 +119,14 @@ function test_aes() {
 
 	var CIPHER_CBC_SHOULD_BE = "dUDHWjxmWDbmtW5DBL1UMMY2CynNH_XJ-XaQA0LKb3k";
 	var CIPHER_CBC = pkey.encrypt_cbc(DATA);
-	var DATA_CBC_DEC = Mega.gbytes_to_string(pkey.decrypt_cbc(CIPHER_CBC));
+	var DATA_CBC_DEC = pkey.decrypt_cbc(CIPHER_CBC);
 
 	assert_eq_bytes("cbc enc/dec data", DATA, DATA_CBC_DEC);
 	assert_eq("cbc enc cipher", CIPHER_CBC, CIPHER_CBC_SHOULD_BE);
 
 	var STRING = "test string";
 	var STRING_CIPHER = pkey.encrypt_string_cbc(STRING);
-	var STRING_DEC = Mega.gbytes_to_string(pkey.decrypt_cbc(STRING_CIPHER));
+	var STRING_DEC = pkey.decrypt_string_cbc(STRING_CIPHER);
 
 	assert_eq("string cbc", STRING, STRING_DEC);
 }
@@ -123,7 +138,7 @@ function test_rsa() {
 	var MY_CSID = "CAAEtLYp0vnRpXhEH3QmIj-Ul1LJvVmZgC3_cEvrSYSbhgnSnAKZ_9j8cVSlD76dfcyWfhCmjTQBlz0jxR_c6Y6sFKD1-x2jqhwnhb2l53voNcc9bO4H2B4zxSZFoul2yT5MK2flmbbr184iUcC9wIkU28sV2Bs8HmhpJsgh_N_EVnKjI4Mlz5izeYagStLg_qPEYuQkymnF_vV6IRAD8kJLscgrsBTQdzABwMuVJoQqv-m7R_ftDW4wHEr-rkcfDhO_jvbp2Vr5ofWF_6gGP0KaX6_A6L6-o8pQDX_XqodpS1mx1ONviQdqBd0CsjdE4j36YJy3-bdeo1MFz7dlUHCq";
 	var MY_SID = "bmXSdJbAQOxUC7wJMdDZS1h6MnRXV0I1RG1vUJwPQ8ZpSRhysTyTsvPVMg";
 
-	var mk = new Mega.AesKey.new_from_ubase64(MY_MASTER_KEY);
+	var mk = Mega.AesKey.new_from_ubase64(MY_MASTER_KEY);
 	var rk = new Mega.RsaKey();
 
 	assert('rsa/load enc privk', rk.load_enc_privk(MY_PRIVK_ENC, mk));
@@ -137,7 +152,7 @@ function test_rsa() {
 
 	var PLAINTEXT = "message";
 	var CIPHER = rk.encrypt(PLAINTEXT);
-	var PLAINTEXT_DEC = Mega.gbytes_to_string(rk.decrypt(CIPHER));
+	var PLAINTEXT_DEC = rk.decrypt(CIPHER);
 
 	assert_eq("rsa/enc dec", hex(PLAINTEXT), hex(PLAINTEXT_DEC).substr(0, PLAINTEXT.length * 2));
 }

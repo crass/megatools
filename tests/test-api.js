@@ -17,16 +17,35 @@
  *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-const Gio = imports.gi.Gio;
-const GLib = imports.gi.GLib;
-const Lang = imports.lang;
-const MegaCore = imports.gi.Mega;
+//const Gio = imports.gi.Gio;
+//const GLib = imports.gi.GLib;
+//const Lang = imports.lang;
+//const MegaCore = imports.gi.Mega;
 const Mega = imports.mega;
 const Config = imports.config;
 
 var s = new Mega.Session();
+//s.open(Config.USERNAME, Config.PASSWORD);
+s.load(Config.USERNAME, Config.PASSWORD);
+s.save();
+s.loadFS();
 
-s.open(Config.USERNAME, Config.PASSWORD);
+var paths = s.getPaths();
+print("PATHS = " + JSON.stringify(paths, false, '\t'));
 
-// load/save session
-// fs/node api
+var root = s.getNode("/Root");
+var up = root.getUploader();
+up.upload("test-aes", "xxxx-aes");
+
+
+/*
+var node = s.getNode("/Root/test-aes.c");
+var dl = node.getDownloader();
+
+print("Downloading: " + node.name + " (size " + GLib.format_size_for_display(node.size) + ")");
+dl.download("dl1.dat", 0, 2);
+dl.download("dl2.dat", 5, 15);
+dl.download("dl3.dat", 55, 401);
+*/
+
+print("Done!");

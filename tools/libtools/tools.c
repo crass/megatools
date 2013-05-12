@@ -65,6 +65,8 @@ static gboolean opt_debug_callback(const gchar *option_name, const gchar *value,
         mega_debug |= MEGA_DEBUG_FS;
       else if (g_ascii_strcasecmp(*opt, "cache") == 0)
         mega_debug |= MEGA_DEBUG_CACHE;
+      else if (g_ascii_strcasecmp(*opt, "curl") == 0)
+        mega_debug |= MEGA_DEBUG_CURL;
 
       opt++;
     }

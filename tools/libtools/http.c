@@ -17,12 +17,11 @@
  *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#include "oldmega.h"
 #include "http.h"
 #include "config.h"
 #include <curl/curl.h>
 #include <string.h>
-
-#define DEBUG_CURL 0
 
 struct _http
 {
@@ -44,9 +43,8 @@ http* http_new(void)
     return NULL;
   }
 
-#if DEBUG_CURL == 1
-  curl_easy_setopt(h->curl, CURLOPT_VERBOSE, 1L);
-#endif
+  if (mega_debug & MEGA_DEBUG_CURL)
+    curl_easy_setopt(h->curl, CURLOPT_VERBOSE, 1L);
 
   //XXX: because we don't distribute cert database on windows
 #ifdef G_OS_WIN32

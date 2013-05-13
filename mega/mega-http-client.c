@@ -81,7 +81,8 @@ struct _MegaHttpClientPrivate
   // http
   GRegex* regex_status;
 
-  // state proeprties
+  // state properties
+  GRecMutex *lock;
   gint conn_state;
   gint64 request_length;
   gint64 response_length;
@@ -638,6 +639,7 @@ MegaHttpIOStream* mega_http_client_post(MegaHttpClient* http_client, const gchar
     return NULL;
   }
 
+  g_rec_mutex_lock(priv->lock);
   // check that there is a change in host or https flag
   if (priv->host == NULL || g_ascii_strcasecmp(priv->host, host) || priv->https != https || priv->port != port) 
   {
@@ -656,6 +658,7 @@ MegaHttpIOStream* mega_http_client_post(MegaHttpClient* http_client, const gchar
   if (!goto_state(http_client, CONN_STATE_INIT_CONNECTED, NULL, &local_err))
   {
     g_propagate_error(err, local_err);
+    g_rec_mutex_unlock(priv->lock);
     return NULL;
   }
 
@@ -664,6 +667,7 @@ MegaHttpIOStream* mega_http_client_post(MegaHttpClient* http_client, const gchar
   priv->expected_read_count = -1;
   priv->response_length = -1;
 
+  g_rec_mutex_unlock(priv->lock);
   return mega_http_io_stream_new(http_client);
 }
 
@@ -702,36 +706,33 @@ GString* mega_http_client_post_simple(MegaHttpClient* http_client, const gchar* 
   GInputStream* is = g_io_stream_get_input_stream(G_IO_STREAM(io));
   GOutputStream* os = g_io_stream_get_output_stream(G_IO_STREAM(io));
 
+  g_rec_mutex_lock(priv->lock);
   if (body_len > 0)
   {
     if (!g_output_stream_write_all(os, body, body_len, NULL, NULL, &local_err))
     {
       g_propagate_error(err, local_err);
-      g_object_unref(io);
-      return NULL;
+      goto err0;
     }
   }
 
   if (!goto_state(http_client, CONN_STATE_HEADERS_RECEIVED, NULL, &local_err))
   {
     g_propagate_error(err, local_err);
-    g_object_unref(io);
-    return NULL;
+    goto err0;
   }
 
   gint64 response_length = mega_http_client_get_response_length(http_client, NULL, &local_err);
   if (response_length < 0)
   {
     g_propagate_prefixed_error(err, local_err, "Response length not set: ");
-    g_object_unref(io);
-    return NULL;
+    goto err0;
   }
 
   if (response_length > 32 * MB) 
   {
     g_set_error(err, MEGA_HTTP_CLIENT_ERROR, MEGA_HTTP_CLIENT_ERROR_OTHER, "Response length over 32 MiB not supported (for post_simple): %s", url);
-    g_object_unref(io);
-    return NULL;
+    goto err0;
   }
 
   gsize len = (gsize)response_length;
@@ -742,25 +743,31 @@ GString* mega_http_client_post_simple(MegaHttpClient* http_client, const gchar* 
   {
     if (!g_input_stream_read_all(is, response->str, len, &response->len, NULL, &local_err))
     {
+      g_rec_mutex_unlock(priv->lock);
       g_propagate_error(err, local_err);
-      g_string_free(response, TRUE);
-      g_object_unref(io);
-      return NULL;
+      goto err1;
     }
 
     if (len != response->len)
     {
+      g_rec_mutex_unlock(priv->lock);
       g_set_error(err, MEGA_HTTP_CLIENT_ERROR, MEGA_HTTP_CLIENT_ERROR_OTHER, "Can't read the entire response: %s", url);
-      g_string_free(response, TRUE);
-      g_object_unref(io);
-      return NULL;
+      goto err1;
     }
 
     response->str[response->len] = '\0';
   }
 
+  g_rec_mutex_unlock(priv->lock);
   g_object_unref(io);
   return response;
+
+err1:
+  g_string_free(response, TRUE);
+err0:
+  g_object_unref(io);
+  g_rec_mutex_unlock(priv->lock);
+  return NULL;
 }
 
 /**
@@ -786,15 +793,18 @@ gssize mega_http_client_write(MegaHttpClient* http_client, const guchar* buffer,
 
   MegaHttpClientPrivate* priv = http_client->priv;
 
+  g_rec_mutex_lock(priv->lock);
   if (!goto_state(http_client, CONN_STATE_HEADERS_SENT, cancellable, &local_err))
   {
     g_propagate_error(err, local_err);
+    g_rec_mutex_unlock(priv->lock);
     return -1;
   }
 
   if (priv->expected_write_count >= 0 && count > priv->expected_write_count)
   {
     g_set_error(err, MEGA_HTTP_CLIENT_ERROR, MEGA_HTTP_CLIENT_ERROR_OTHER, "Write of %" G_GSIZE_FORMAT " too big, expected at most: %" G_GINT64_FORMAT, count, priv->expected_write_count);
+    g_rec_mutex_unlock(priv->lock);
     return -1;
   }
 
@@ -812,6 +822,7 @@ gssize mega_http_client_write(MegaHttpClient* http_client, const guchar* buffer,
     goto_state(http_client, CONN_STATE_FAILED, NULL, NULL);
   }
 
+  g_rec_mutex_unlock(priv->lock);
   return bytes_written;
 }
 
@@ -830,6 +841,7 @@ gssize mega_http_client_write(MegaHttpClient* http_client, const guchar* buffer,
 gssize mega_http_client_read(MegaHttpClient* http_client, guchar* buffer, gsize count, GCancellable* cancellable, GError** err)
 {
   GError* local_err = NULL;
+  gssize bytes_read = 0;
 
   g_return_val_if_fail(MEGA_IS_HTTP_CLIENT(http_client), -1);
   g_return_val_if_fail(buffer != NULL, -1);
@@ -838,14 +850,12 @@ gssize mega_http_client_read(MegaHttpClient* http_client, guchar* buffer, gsize 
 
   MegaHttpClientPrivate* priv = http_client->priv;
 
+  g_rec_mutex_lock(priv->lock);
   if (priv->conn_state == CONN_STATE_NONE || priv->conn_state == CONN_STATE_NONE_CONNECTED)
-    return 0;
+    goto return0;
 
   if (!goto_state(http_client, CONN_STATE_HEADERS_RECEIVED, cancellable, &local_err))
-  {
-    g_propagate_error(err, local_err);
-    return -1;
-  }
+    goto err;
 
   gint end_state = server_wants_to_close(http_client) ? CONN_STATE_NONE : CONN_STATE_NONE_CONNECTED;
 
@@ -853,12 +863,9 @@ gssize mega_http_client_read(MegaHttpClient* http_client, guchar* buffer, gsize 
   if (priv->expected_read_count == 0)
   {
     if (!goto_state(http_client, end_state, cancellable, &local_err))
-    {
-      g_propagate_error(err, local_err);
-      return -1;
-    }
+      goto err;
 
-    return 0;
+    goto return0;
   }
 
   // read at most expected read count if set
@@ -866,7 +873,7 @@ gssize mega_http_client_read(MegaHttpClient* http_client, guchar* buffer, gsize 
     count = priv->expected_read_count;
 
   // do the reading
-  gssize bytes_read = g_input_stream_read(priv->istream, buffer, count, cancellable, &local_err);
+  bytes_read = g_input_stream_read(priv->istream, buffer, count, cancellable, &local_err);
   if (bytes_read >= 0)
   {
     if (priv->expected_read_count > 0)
@@ -876,10 +883,7 @@ gssize mega_http_client_read(MegaHttpClient* http_client, guchar* buffer, gsize 
   if (priv->expected_read_count == 0)
   {
     if (!goto_state(http_client, end_state, cancellable, &local_err))
-    {
-      g_propagate_error(err, local_err);
-      return -1;
-    }
+      goto err;
   }
 
   if (bytes_read < 0)
@@ -889,7 +893,14 @@ gssize mega_http_client_read(MegaHttpClient* http_client, guchar* buffer, gsize 
     goto_state(http_client, CONN_STATE_FAILED, NULL, NULL);
   }
 
+return0:
+  g_rec_mutex_unlock(priv->lock);
   return bytes_read;
+
+err:
+  g_rec_mutex_unlock(priv->lock);
+  g_propagate_error(err, local_err);
+  return -1;
 }
 
 /**
@@ -914,12 +925,15 @@ gboolean mega_http_client_close(MegaHttpClient* http_client, gboolean force, GCa
   if (priv->conn_state == CONN_STATE_NONE_CONNECTED && !force)
     return TRUE;
 
+  g_rec_mutex_lock(priv->lock);
   if (!goto_state(http_client, CONN_STATE_NONE, cancellable, &local_err))
   {
+    g_rec_mutex_unlock(priv->lock);
     g_propagate_error(err, local_err);
     return FALSE;
   }
 
+  g_rec_mutex_unlock(priv->lock);
   return TRUE;
 }
 
@@ -941,19 +955,24 @@ gint64 mega_http_client_get_response_length(MegaHttpClient* http_client, GCancel
 
   MegaHttpClientPrivate* priv = http_client->priv;
 
+  g_rec_mutex_lock(priv->lock);
   if (!goto_state(http_client, CONN_STATE_HEADERS_RECEIVED, cancellable, &local_err))
   {
+    g_rec_mutex_unlock(priv->lock);
     g_propagate_error(err, local_err);
     return -1;
   }
 
   if (priv->response_length < 0)
   {
+    g_rec_mutex_unlock(priv->lock);
     g_set_error(err, MEGA_HTTP_CLIENT_ERROR, MEGA_HTTP_CLIENT_ERROR_OTHER, "Response length not set");
     return -1;
   }
 
-  return priv->response_length;
+  gint response_length = priv->response_length;
+  g_rec_mutex_unlock(priv->lock);
+  return response_length;
 }
 
 // {{{ GObject type setup
@@ -1011,6 +1030,8 @@ static void mega_http_client_init(MegaHttpClient *http_client)
   priv->response_headers = g_hash_table_new_full(stri_hash, stri_equal, g_free, g_free);
   priv->regex_url = g_regex_new("^([a-z]+)://([a-z0-9.-]+(?::([0-9]+))?)(/.+)?$", G_REGEX_CASELESS, 0, NULL);
   priv->regex_status = g_regex_new("^HTTP/([0-9]+\\.[0-9]+) ([0-9]+) (.+)$", 0, 0, NULL);
+  priv->lock = g_new(GRecMutex, 1);
+  g_rec_mutex_init(priv->lock);
 
   // set default headers
   mega_http_client_set_header(http_client, "Referer", "https://mega.co.nz/");
@@ -1041,6 +1062,8 @@ static void mega_http_client_finalize(GObject *object)
   g_object_unref(priv->client);
   g_regex_unref(priv->regex_url);
   g_regex_unref(priv->regex_status);
+  g_rec_mutex_clear(priv->lock);
+  g_free(priv->lock);
 
   G_OBJECT_CLASS(mega_http_client_parent_class)->finalize(object);
 }

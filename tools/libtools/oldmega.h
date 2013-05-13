@@ -20,6 +20,7 @@
 #ifndef __OLD_MEGA_H
 #define __OLD_MEGA_H
 
+#include <unistd.h>
 #include <glib.h>
 
 // API error domain
@@ -167,6 +168,7 @@ gboolean            mega_session_rm                 (mega_session* s, const gcha
 mega_node*          mega_session_put                (mega_session* s, const gchar* remote_path, const gchar* local_path, GError** err);
 gchar*              mega_session_new_node_attribute (mega_session* s, const guchar* data, gsize len, const gchar* type, const guchar* key, GError** err);
 gboolean            mega_session_get                (mega_session* s, const gchar* local_path, const gchar* remote_path, GError** err);
+gint                mega_session_pread              (mega_session* s, const gchar* remote_path, gpointer buf, const size_t count, const off_t offset, GError** err);
 
 gboolean            mega_session_open_exp_folder    (mega_session* s, const gchar* n, const gchar* key, GError** err);
 gboolean            mega_session_dl                 (mega_session* s, const gchar* handle, const gchar* key, const gchar* local_path, GError** err);

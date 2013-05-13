@@ -3377,7 +3377,7 @@ err0:
 struct _get_data
 {
   mega_session* s;
-  GFileOutputStream* stream;
+  GOutputStream* stream;
   AES_KEY k;
   guchar iv[AES_BLOCK_SIZE];
   gint num;
@@ -3408,12 +3408,15 @@ static gsize get_process_data(gpointer buffer, gsize size, struct _get_data* dat
     return size;
   }
 
-  if (g_output_stream_write_all(G_OUTPUT_STREAM(data->stream), out_buffer, size, NULL, NULL, NULL))
+  GError *local_err = NULL;
+  gsize bytes_written = 0;
+  if (g_output_stream_write_all(G_OUTPUT_STREAM(data->stream), out_buffer, size, &bytes_written, NULL, &local_err))
   {
     g_free(out_buffer);
     return size;
   }
 
+  g_printerr("ERROR: get_process_data: write failed of size %u (bytes_written=%d): %s\n", (unsigned int)size, (int)bytes_written, local_err->message);
   g_free(out_buffer);
   return 0;
 }
@@ -3478,7 +3481,7 @@ gboolean mega_session_get(mega_session* s, const gchar* local_path, const gchar*
       }
     }
 
-    data.stream = g_file_create(file, 0, NULL, &local_err);
+    data.stream = G_OUTPUT_STREAM(g_file_create(file, 0, NULL, &local_err));
     if (!data.stream)
     {
       g_propagate_prefixed_error(err, local_err, "Can't open local file %s for writing: ", local_path);
@@ -3529,7 +3532,7 @@ gboolean mega_session_get(mega_session* s, const gchar* local_path, const gchar*
 
   if (file)
   {
-    if (!g_output_stream_close(G_OUTPUT_STREAM(data.stream), NULL, &local_err))
+    if (!g_output_stream_close(data.stream, NULL, &local_err))
     {
       g_propagate_prefixed_error(err, local_err, "Can't close downloaded file: ");
       goto err1;
@@ -3569,6 +3572,122 @@ err0:
     g_object_unref(file);
   }
   return FALSE;
+}
+
+/* increment counter (128-bit int) by n, counter is big-endian */
+/* This is very similar to the counter increment by one function
+   provided by openssl, which is not part of the public api in
+   crypto/modes/ctr128.c.  However, this one allows for increment by
+   n, which is more efficient than calling ctr128_inc n times. */
+static void ctr128_incn(unsigned char *counter, unsigned int n) {
+  unsigned char b=16, c;
+
+  if (n == 0) return;
+  do {
+    --b;
+    c = counter[b];
+    c += n % 256;
+    n >>= 8;
+    counter[b] = c;
+    if (c && n == 0) return;
+  } while (b);
+}
+
+gint mega_session_pread(mega_session* s, const gchar* remote_path, gpointer buf, const size_t count, const off_t offset, GError** err)
+{
+  struct _get_data data;
+  GError* local_err = NULL;
+  GFile* file = NULL;
+
+  g_return_val_if_fail(s != NULL, FALSE);
+  g_return_val_if_fail(s->fs_pathmap != NULL, FALSE);
+  g_return_val_if_fail(remote_path != NULL, FALSE);
+  g_return_val_if_fail(buf != NULL, FALSE);
+  g_return_val_if_fail(err == NULL || *err == NULL, FALSE);
+
+  memset(&data, 0, sizeof(data));
+  data.s = s;
+
+  mega_node* n = mega_session_stat(s, remote_path);
+  if (!n)
+  {
+    g_set_error(err, MEGA_ERROR, MEGA_ERROR_OTHER, "Remote file not found: %s", remote_path);
+    return FALSE;
+  }
+
+  data.stream = G_OUTPUT_STREAM(g_memory_output_stream_new (buf, count, NULL, NULL));
+
+  // initialize decrytpion key/state
+  guchar aes_key[16], meta_mac_xor[8];
+  unpack_node_key(n->key, aes_key, data.iv, meta_mac_xor);
+  AES_set_encrypt_key(aes_key, 128, &data.k);
+  
+  // set decryption state to start decrypting from offset
+  data.num = offset % 16;
+  ctr128_incn(data.iv, offset / 16);
+  AES_encrypt(data.iv, data.ecount, &data.k);
+  chunked_cbc_mac_init8(&data.mac, aes_key, data.iv);
+
+  // prepare request
+  gchar* get_node = api_call(s, 'o', NULL, &local_err, "[{a:g, g:1, ssl:0, n:%s}]", n->handle);
+
+  if (!get_node)
+  {
+    g_propagate_error(err, local_err);
+    goto err0;
+  }
+
+  gint64 file_size = s_json_get_member_int(get_node, "s", -1);
+  if (file_size < 0)
+  {
+    g_set_error(err, MEGA_ERROR, MEGA_ERROR_OTHER, "Can't determine file size");
+    goto err0;
+  }
+
+  gchar* url = s_json_get_member_string(get_node, "g");
+  if (!url)
+  {
+    g_set_error(err, MEGA_ERROR, MEGA_ERROR_OTHER, "Can't determine download url");
+    goto err0;
+  }
+
+  // Only get requested range of bytes
+  gchar* tmp_url = g_strdup_printf("%s/%llu-%llu", url, (long long unsigned int)offset, (long long unsigned int)(offset+count-1));
+  g_free(url);
+  url = tmp_url;
+
+  if (mega_debug & MEGA_DEBUG_API)
+    g_print("dlurl = %s\n", url);
+
+  // perform download
+  http* h = http_new();
+  http_set_progress_callback(h, (http_progress_fn)progress_generic, s);
+  if (!http_post_stream_download(h, url, (http_data_fn)get_process_data, &data, &local_err))
+  {
+    g_propagate_prefixed_error(err, local_err, "Data download failed: ");
+    goto err1;
+  }
+
+  if (!g_output_stream_close(G_OUTPUT_STREAM(data.stream), NULL, &local_err))
+  {
+    g_propagate_prefixed_error(err, local_err, "Can't close downloaded chunk: ");
+    goto err1;
+  }
+
+  g_object_unref(data.stream);
+  g_free(url);
+  http_free(h);
+  g_free(get_node);
+
+  return count;
+
+err1:
+  g_free(url);
+  http_free(h);
+err0:
+  g_free(get_node);
+  g_object_unref(data.stream);
+  return -1;
 }
 
 // }}}

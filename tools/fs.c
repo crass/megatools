@@ -141,12 +141,26 @@ static int mega_truncate(const char *path, off_t size)
 
 static int mega_open(const char *path, struct fuse_file_info *fi)
 {
-  return -ENOTSUP;
+  if ((fi->flags & O_CREAT) || (fi->flags & O_APPEND) ||
+      (fi->flags & O_EXCL) || (fi->flags & O_TRUNC))
+  {
+    return -EACCES;
+  }
+  return 0;
 }
 
 static int mega_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
-  return -ENOTSUP;
+  GError *local_err = NULL;
+
+  if (mega_session_pread(s, path, buf, size, offset, &local_err) == -1)
+  {
+    g_printerr("ERROR: mega_session_pread failed for '%s': %s\n", path, local_err->message);
+    g_clear_error(&local_err);
+    return -EIO;
+  }
+
+  return size;
 }
 
 static int mega_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi)

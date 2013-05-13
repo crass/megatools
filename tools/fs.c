@@ -141,11 +141,25 @@ static int mega_truncate(const char *path, off_t size)
 
 static int mega_open(const char *path, struct fuse_file_info *fi)
 {
+  GError *local_err = NULL;
+
   if ((fi->flags & O_CREAT) || (fi->flags & O_APPEND) ||
       (fi->flags & O_EXCL) || (fi->flags & O_TRUNC))
   {
     return -EACCES;
   }
+  
+  mega_file* f = mega_file_open(s, path, fi->flags, &local_err);
+  if (f == NULL)
+  {
+    g_printerr("ERROR: mega_file_open failed for '%s': %s\n", path, local_err->message);
+    g_clear_error(&local_err);
+    return -EIO;
+  }
+  
+  // set the pointer to the mega_file as the fuse file handle
+  fi->fh = (uint64_t) f;
+  
   return 0;
 }
 
@@ -153,9 +167,9 @@ static int mega_read(const char *path, char *buf, size_t size, off_t offset, str
 {
   GError *local_err = NULL;
 
-  if (mega_session_pread(s, path, buf, size, offset, &local_err) == -1)
+  if (mega_file_pread((mega_file*)fi->fh, buf, size, offset, &local_err) == -1)
   {
-    g_printerr("ERROR: mega_session_pread failed for '%s': %s\n", path, local_err->message);
+    g_printerr("ERROR: mega_file_pread failed for '%s': %s\n", path, local_err->message);
     g_clear_error(&local_err);
     return -EIO;
   }
@@ -170,6 +184,15 @@ static int mega_write(const char *path, const char *buf, size_t size, off_t offs
 
 static int mega_release(const char *path, struct fuse_file_info *fi)
 {
+  GError *local_err = NULL;
+
+  if (fi->fh && mega_file_close((mega_file*)fi->fh, &local_err) == -1)
+  {
+    g_printerr("ERROR: mega_file_close failed for '%s': %s\n", path, local_err->message);
+    g_clear_error(&local_err);
+    return -EIO;
+  }
+
   return 0;
 }
 

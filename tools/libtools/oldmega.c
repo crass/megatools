@@ -24,6 +24,7 @@
 
 #include <gio/gio.h>
 #include <glib/gstdio.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -117,6 +118,21 @@ struct _mega_sesssion
   gpointer status_userdata;
 
   gint64 last_refresh;
+};
+
+// }}}
+// {{{ mega_file
+
+struct _mega_file 
+{
+  mega_session* s;
+
+  gchar* path;
+  gint64 file_size;
+  gint mode;
+  gchar* url;
+
+  mega_node *n;
 };
 
 // }}}
@@ -3416,7 +3432,7 @@ static gsize get_process_data(gpointer buffer, gsize size, struct _get_data* dat
     return size;
   }
 
-  g_printerr("ERROR: get_process_data: write failed of size %u (bytes_written=%d): %s\n", (unsigned int)size, (int)bytes_written, local_err->message);
+  g_printerr("ERROR: get_process_data: write failed of size %u (bytes_written=%d): %s\n", size, bytes_written, local_err->message);
   g_free(out_buffer);
   return 0;
 }
@@ -3572,122 +3588,6 @@ err0:
     g_object_unref(file);
   }
   return FALSE;
-}
-
-/* increment counter (128-bit int) by n, counter is big-endian */
-/* This is very similar to the counter increment by one function
-   provided by openssl, which is not part of the public api in
-   crypto/modes/ctr128.c.  However, this one allows for increment by
-   n, which is more efficient than calling ctr128_inc n times. */
-static void ctr128_incn(unsigned char *counter, unsigned int n) {
-  unsigned char b=16, c;
-
-  if (n == 0) return;
-  do {
-    --b;
-    c = counter[b];
-    c += n % 256;
-    n >>= 8;
-    counter[b] = c;
-    if (c && n == 0) return;
-  } while (b);
-}
-
-gint mega_session_pread(mega_session* s, const gchar* remote_path, gpointer buf, const size_t count, const off_t offset, GError** err)
-{
-  struct _get_data data;
-  GError* local_err = NULL;
-  GFile* file = NULL;
-
-  g_return_val_if_fail(s != NULL, FALSE);
-  g_return_val_if_fail(s->fs_pathmap != NULL, FALSE);
-  g_return_val_if_fail(remote_path != NULL, FALSE);
-  g_return_val_if_fail(buf != NULL, FALSE);
-  g_return_val_if_fail(err == NULL || *err == NULL, FALSE);
-
-  memset(&data, 0, sizeof(data));
-  data.s = s;
-
-  mega_node* n = mega_session_stat(s, remote_path);
-  if (!n)
-  {
-    g_set_error(err, MEGA_ERROR, MEGA_ERROR_OTHER, "Remote file not found: %s", remote_path);
-    return FALSE;
-  }
-
-  data.stream = G_OUTPUT_STREAM(g_memory_output_stream_new (buf, count, NULL, NULL));
-
-  // initialize decrytpion key/state
-  guchar aes_key[16], meta_mac_xor[8];
-  unpack_node_key(n->key, aes_key, data.iv, meta_mac_xor);
-  AES_set_encrypt_key(aes_key, 128, &data.k);
-  
-  // set decryption state to start decrypting from offset
-  data.num = offset % 16;
-  ctr128_incn(data.iv, offset / 16);
-  AES_encrypt(data.iv, data.ecount, &data.k);
-  chunked_cbc_mac_init8(&data.mac, aes_key, data.iv);
-
-  // prepare request
-  gchar* get_node = api_call(s, 'o', NULL, &local_err, "[{a:g, g:1, ssl:0, n:%s}]", n->handle);
-
-  if (!get_node)
-  {
-    g_propagate_error(err, local_err);
-    goto err0;
-  }
-
-  gint64 file_size = s_json_get_member_int(get_node, "s", -1);
-  if (file_size < 0)
-  {
-    g_set_error(err, MEGA_ERROR, MEGA_ERROR_OTHER, "Can't determine file size");
-    goto err0;
-  }
-
-  gchar* url = s_json_get_member_string(get_node, "g");
-  if (!url)
-  {
-    g_set_error(err, MEGA_ERROR, MEGA_ERROR_OTHER, "Can't determine download url");
-    goto err0;
-  }
-
-  // Only get requested range of bytes
-  gchar* tmp_url = g_strdup_printf("%s/%llu-%llu", url, (long long unsigned int)offset, (long long unsigned int)(offset+count-1));
-  g_free(url);
-  url = tmp_url;
-
-  if (mega_debug & MEGA_DEBUG_API)
-    g_print("dlurl = %s\n", url);
-
-  // perform download
-  http* h = http_new();
-  http_set_progress_callback(h, (http_progress_fn)progress_generic, s);
-  if (!http_post_stream_download(h, url, (http_data_fn)get_process_data, &data, &local_err))
-  {
-    g_propagate_prefixed_error(err, local_err, "Data download failed: ");
-    goto err1;
-  }
-
-  if (!g_output_stream_close(G_OUTPUT_STREAM(data.stream), NULL, &local_err))
-  {
-    g_propagate_prefixed_error(err, local_err, "Can't close downloaded chunk: ");
-    goto err1;
-  }
-
-  g_object_unref(data.stream);
-  g_free(url);
-  http_free(h);
-  g_free(get_node);
-
-  return count;
-
-err1:
-  g_free(url);
-  http_free(h);
-err0:
-  g_free(get_node);
-  g_object_unref(data.stream);
-  return -1;
 }
 
 // }}}
@@ -4532,6 +4432,167 @@ err0:
   g_free(b64_master_key);
   g_free(b64_challenge);
   return status;
+}
+
+// }}}
+// {{{ mega_file_open
+
+mega_file* mega_file_open(mega_session* s, const gchar* remote_path, guint mode, GError** err)
+{
+  GError* local_err = NULL;
+
+  g_return_val_if_fail(s != NULL, NULL);
+  g_return_val_if_fail(s->fs_pathmap != NULL, NULL);
+  g_return_val_if_fail(remote_path != NULL, NULL);
+
+  mega_file* f = g_new0(mega_file, 1);
+  memset(f, 0, sizeof(*f));
+
+  f->s = s;
+  f->path = g_strdup(remote_path);
+  f->mode = mode;
+
+  f->n = mega_session_stat(s, remote_path);
+  if (!f->n && !(f->mode & O_CREAT))
+  {
+    g_set_error(err, MEGA_ERROR, G_FILE_ERROR_NOENT, "Remote file not found: %s", remote_path);
+    g_free(f);
+    return NULL;
+  }
+
+  // Requesting read access
+  gchar* get_node = NULL;
+  if (!(mode & O_WRONLY))
+  {
+    // prepare request
+    get_node = api_call(s, 'o', NULL, &local_err, "[{a:g, g:1, ssl:0, n:%s}]", f->n->handle);
+
+    if (!get_node)
+    {
+      g_propagate_error(err, local_err);
+      goto err0;
+    }
+
+    gint64 file_size = f->file_size = s_json_get_member_int(get_node, "s", -1);
+    if (file_size < 0)
+    {
+      g_set_error(err, MEGA_ERROR, MEGA_ERROR_OTHER, "Can't determine file size");
+      goto err0;
+    }
+
+    gchar* url = f->url = s_json_get_member_string(get_node, "g");
+    if (!url)
+    {
+      g_set_error(err, MEGA_ERROR, MEGA_ERROR_OTHER, "Can't determine download url");
+      goto err0;
+    }
+  }
+
+  return f;
+
+err0:
+  if (get_node)
+    g_free(get_node);
+  g_free(f);
+  return NULL;
+}
+
+// }}}
+// {{{ mega_file_close
+
+gint mega_file_close(mega_file* f, GError** err)
+{
+  GError* local_err = NULL;
+
+  g_return_val_if_fail(err == NULL || *err == NULL, -1);
+
+  g_free(f->path);
+  g_free(f->url);
+
+  g_free(f);
+  return 0;
+}
+
+// }}}
+// {{{ mega_file_pread
+
+/* increment counter (128-bit int) by n, counter is big-endian */
+/* This is very similar to the counter increment by one function
+   provided by openssl, which is not part of the public api in
+   crypto/modes/ctr128.c.  However, this one allows for increment by
+   n, which is more efficient than calling ctr128_inc n times. */
+static void ctr128_incn(unsigned char *counter, unsigned int n) {
+  unsigned char b=16, c;
+
+  if (n == 0) return;
+  do {
+    --b;
+    c = counter[b];
+    c += n % 256;
+    n >>= 8;
+    counter[b] = c;
+    if (c && n == 0) return;
+  } while (b);
+}
+
+gint mega_file_pread (mega_file* f, const gpointer buf, const size_t count, const off_t offset, GError** err)
+{
+  struct _get_data data;
+  GError* local_err = NULL;
+  GFile* file = NULL;
+
+  g_return_val_if_fail(f != NULL, -1);
+  g_return_val_if_fail(buf != NULL, -1);
+  g_return_val_if_fail(err == NULL || *err == NULL, -1);
+  g_return_val_if_fail(!(f->mode & O_WRONLY), -1);
+
+  memset(&data, 0, sizeof(data));
+  data.s = f->s;
+
+  data.stream = G_OUTPUT_STREAM(g_memory_output_stream_new (buf, count, NULL, NULL));
+
+  // initialize decrytpion key/state
+  guchar aes_key[16], meta_mac_xor[8];
+  unpack_node_key(f->n->key, aes_key, data.iv, meta_mac_xor);
+  AES_set_encrypt_key(aes_key, 128, &data.k);
+  
+  // set decryption state to start decrypting from offset
+  data.num = offset % 16;
+  ctr128_incn(data.iv, offset / 16);
+  AES_encrypt(data.iv, data.ecount, &data.k);
+  chunked_cbc_mac_init8(&data.mac, aes_key, data.iv);
+
+  // Only get requested range of bytes
+  gchar* url = g_strdup_printf("%s/%llu-%llu", f->url, (long long unsigned int)offset, (long long unsigned int)(offset+count-1));
+
+  if (mega_debug & MEGA_DEBUG_API)
+    g_print("dlurl = %s\n", url);
+
+  // perform download
+  http* h = http_new();
+  if (!http_post_stream_download(h, url, (http_data_fn)get_process_data, &data, &local_err))
+  {
+    g_propagate_prefixed_error(err, local_err, "Data download failed: ");
+    goto err0;
+  }
+
+  if (!g_output_stream_close(G_OUTPUT_STREAM(data.stream), NULL, &local_err))
+  {
+    g_propagate_prefixed_error(err, local_err, "Can't close downloaded chunk: ");
+    goto err0;
+  }
+
+  g_free(url);
+  http_free(h);
+  g_object_unref(data.stream);
+
+  return count;
+
+err0:
+  g_free(url);
+  http_free(h);
+  g_object_unref(data.stream);
+  return -1;
 }
 
 // }}}
